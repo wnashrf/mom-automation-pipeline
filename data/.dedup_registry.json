@@ -1,0 +1,19 @@
+{
+  "registry_version": "1.0.0",
+  "entries": [
+    {
+      "sha256": "23011a362ee6b976ec1b0ad2ba112fa4d12e5092f8e7f7220007f258c3a7be2f",
+      "source_file": "transcripts/mock_labeled_mixed.txt",
+      "meeting_id": "MTG-20250715-001",
+      "extraction_status": "success",
+      "extracted_at": "2026-09-17T00:00:00Z"
+    },
+    {
+      "sha256": "adf368eded4ce125f892ff9c42374ff40d5466428d63a43f008e91e7fde38318",
+      "source_file": "transcripts/mock_labeled_mixed.txt",
+      "meeting_id": "MTG-20250115-001",
+      "extraction_status": "success",
+      "extracted_at": "2026-09-17T02:00:00Z"
+    }
+  ]
+}

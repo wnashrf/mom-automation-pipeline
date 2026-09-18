@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "MoM Ingestion Hook",
+      "trigger": "PostFileSave",
+      "matcher": ".*transcripts[\\\\/].*\\.txt$",
+      "action": {
+        "type": "agent",
+        "prompt": "A transcript file has been updated: {{filePath}}.\n\nRun the MoM extraction pipeline on this file:\n1. Read {{filePath}}.\n2. Compute SHA-256 and check against data/.dedup_registry.json. If status is 'success', log duplicate warning and stop.\n3. If empty (0 bytes), log warning and stop.\n4. Load steering rules from .kiro/steering/mom-rules.md.\n5. Run Extraction Agent.\n6. Validate against MoM_Schema.\n7. Atomically write data/extracted_mom.json.\n8. Record SHA-256 in data/.dedup_registry.json.\n9. Run scripts/dispatch_quick.py.\n10. Log final status with meeting_id."
+      }
+    }
+  ]
+}

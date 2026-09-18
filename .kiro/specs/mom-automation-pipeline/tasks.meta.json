@@ -1,0 +1,130 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create workspace directory structure": [
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606275690
+      },
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606438498
+      }
+    ],
+    "1.2 Define steering rules in `.kiro/steering/mom-rules.md`": [
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606283259
+      },
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606446295
+      }
+    ],
+    "1.3 Create initial empty deduplication registry": [
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606292082
+      },
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606456288
+      }
+    ],
+    "1. Project Scaffolding & Steering Rules": [
+      {
+        "executionId": "359008ee-6199-4c35-aa31-111a14ca9939",
+        "chatSessionId": "sess_fd236a28-a1e2-4994-bfe7-f6d51c1f255c",
+        "timestamp": 1789606456405
+      }
+    ],
+    "2.2 Create `transcripts/mock_labeled_mixed.txt`": [
+      {
+        "executionId": "6aa6722f-f902-446f-b968-80b70d9889ab",
+        "chatSessionId": "sess_fa5fa346-9a36-4b82-aa17-2528944a36f7",
+        "timestamp": 1789607385648
+      },
+      {
+        "executionId": "6aa6722f-f902-446f-b968-80b70d9889ab",
+        "chatSessionId": "sess_fa5fa346-9a36-4b82-aa17-2528944a36f7",
+        "timestamp": 1789607453400
+      },
+      {
+        "executionId": "86f9e1dd-5692-4e24-82fc-c8b67a1a0d90",
+        "chatSessionId": "sess_fa5fa346-9a36-4b82-aa17-2528944a36f7",
+        "timestamp": 1789612090298
+      },
+      {
+        "executionId": "86f9e1dd-5692-4e24-82fc-c8b67a1a0d90",
+        "chatSessionId": "sess_fa5fa346-9a36-4b82-aa17-2528944a36f7",
+        "timestamp": 1789612095440
+      },
+      {
+        "executionId": "86f9e1dd-5692-4e24-82fc-c8b67a1a0d90",
+        "chatSessionId": "sess_fa5fa346-9a36-4b82-aa17-2528944a36f7",
+        "timestamp": 1789612179636
+      }
+    ],
+    "7.1 Create `.kiro/hooks/mom-ingestion.json`": [
+      {
+        "executionId": "b2e72f3f-63f0-4de7-ae72-43ec7296dc1f",
+        "chatSessionId": "sess_19e45c56-e51d-49af-81f0-5faf9f189ae7",
+        "timestamp": 1789608387422
+      },
+      {
+        "executionId": "b2e72f3f-63f0-4de7-ae72-43ec7296dc1f",
+        "chatSessionId": "sess_19e45c56-e51d-49af-81f0-5faf9f189ae7",
+        "timestamp": 1789608448242
+      }
+    ],
+    "8.1 Implement `load_payload` and `filter_nulls` (`scripts/dispatch_quick.py`)": [
+      {
+        "executionId": "c1a474fe-a2c4-440f-8cd5-829e1909605e",
+        "chatSessionId": "sess_68873869-cb6a-4a42-b5a1-4a2147f5b7b1",
+        "timestamp": 1789608616539
+      },
+      {
+        "executionId": "c1a474fe-a2c4-440f-8cd5-829e1909605e",
+        "chatSessionId": "sess_68873869-cb6a-4a42-b5a1-4a2147f5b7b1",
+        "timestamp": 1789609140191
+      }
+    ],
+    "8.2 Implement `post_with_retry` (`scripts/dispatch_quick.py`)": [
+      {
+        "executionId": "43dcd378-3e06-43a9-b846-83935c81558a",
+        "chatSessionId": "sess_19d144e5-68a1-40ec-b636-eb2f9ee4ebb6",
+        "timestamp": 1789609246730
+      },
+      {
+        "executionId": "43dcd378-3e06-43a9-b846-83935c81558a",
+        "chatSessionId": "sess_19d144e5-68a1-40ec-b636-eb2f9ee4ebb6",
+        "timestamp": 1789609356406
+      }
+    ],
+    "8.3 Implement `main()` entry point (`scripts/dispatch_quick.py`)": [
+      {
+        "executionId": "790c8a49-a15d-44c7-ac74-6de56385218d",
+        "chatSessionId": "sess_97833c61-ee6a-482f-9e6e-542c9c046059",
+        "timestamp": 1789609375570
+      },
+      {
+        "executionId": "790c8a49-a15d-44c7-ac74-6de56385218d",
+        "chatSessionId": "sess_97833c61-ee6a-482f-9e6e-542c9c046059",
+        "timestamp": 1789609564162
+      }
+    ],
+    "8. Dispatch Bridge": [
+      {
+        "executionId": "790c8a49-a15d-44c7-ac74-6de56385218d",
+        "chatSessionId": "sess_97833c61-ee6a-482f-9e6e-542c9c046059",
+        "timestamp": 1789609564315
+      }
+    ]
+  }
+}

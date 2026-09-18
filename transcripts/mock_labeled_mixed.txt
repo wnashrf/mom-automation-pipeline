@@ -1,0 +1,69 @@
+Meeting: IT System Migration & Budget Review
+Date: 2025-01-15 09:30
+Attendees: Ahmad Faizal (IT Department), Siti Nabilah (Finance), Rajan Kumar (Engineering), [Nurul Ain] (HR)
+
+---
+
+Ahmad Faizal: Ok team, kita start meeting sekarang. Agenda pertama hari ini is to review the status of our system migration project, then we move on to the budget approval. Semua orang dah baca the proposal kan?
+
+[Nurul Ain]: Dah baca lah, tapi ada beberapa questions about the HR module. The new system — macam mana dia handle leave applications? Sama ke dengan the current one?
+
+Ahmad Faizal: More or less sama lah, tapi ada improvements. The new system supports mobile approval, so managers boleh approve on the go. Rajan, you want to explain the technical side?
+
+Rajan Kumar: Sure. So the migration involves three phases — first we migrate the database, then the application layer, and finally user acceptance testing. We target completion by end of Q1 lah. The main challenge right now is data mapping between the old schema and the new one.
+
+Siti Nabilah: From Finance perspective, kita perlu make sure the payroll integration is solid mah. Last time we had issues with the salary calculations after a system upgrade. Tak nak repeat that lor.
+
+Ahmad Faizal: Betul tu. That's actually one of the key items we flagged in the proposal. Rajan's team will do parallel-run testing for payroll for at least two pay cycles before we fully cut over.
+
+Rajan Kumar: Yes, confirmed. We already allocated two engineers specifically for the payroll integration testing. Should be ok lah.
+
+---
+
+Ahmad Faizal: Baik, moving on to Agenda 2 — budget approval. Siti, can you walk us through the numbers?
+
+Siti Nabilah: Ok. Total projected cost for the migration is RM 240,000. This includes licensing fees, infrastructure upgrade, and professional services. Dalam breakdown tu, the biggest chunk is the cloud infrastructure — about RM 120,000 for the first year.
+
+[Nurul Ain]: Wah, quite a lot lor. Ada tak option to phase the payments?
+
+Siti Nabilah: Ada. Vendor dah agree to split into three instalments — 40% upfront, 30% at go-live, and 30% at three months post-go-live. That makes it more manageable lah for our cash flow.
+
+Ahmad Faizal: Ok bagus. I think this is reasonable. Do we all agree to proceed with the phased payment structure?
+
+Rajan Kumar: Agreed from Engineering side.
+
+[Nurul Ain]: HR setuju jugak.
+
+Siti Nabilah: Finance approves.
+
+Ahmad Faizal: Diputuskan bahawa projek migrasi sistem akan diteruskan dengan struktur pembayaran berperingkat seperti yang dibentangkan oleh Siti Nabilah, dengan jumlah kos keseluruhan RM 240,000.
+
+---
+
+Ahmad Faizal: Good. Now, action items. Rajan, kita perlu the detailed technical timeline by next week.
+
+Rajan Kumar: Will do la. I'll prepare a Gantt chart with all the milestones and share it on Teams.
+
+Ahmad Faizal: Siti, Sila hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan sebelum 22 Januari 2025 untuk kelulusan rasmi.
+
+Siti Nabilah: Ok no problem. I'll draft the budget approval memo and get it signed off.
+
+[Nurul Ain]: What about the HR module requirement document? Who's handling that?
+
+Ahmad Faizal: Nurul Ain, boleh you prepare the HR module requirements by end of this week? So Rajan's team can use it for the configuration.
+
+[Nurul Ain]: Boleh lah. I'll consolidate the requirements from all HR users and send by Friday.
+
+Rajan Kumar: Perfect. Once we have that, we can start the configuration sprint next Monday.
+
+---
+
+Ahmad Faizal: Ok I think that covers everything for today. Next meeting will be in two weeks to review the technical timeline and get a status update on the parallel-run preparation. Any last questions?
+
+Siti Nabilah: Takde. Clear lah.
+
+[Nurul Ain]: Same, all good.
+
+Rajan Kumar: Ok lor, no more questions from my side.
+
+Ahmad Faizal: Alright, meeting adjourned. Terima kasih semua.
