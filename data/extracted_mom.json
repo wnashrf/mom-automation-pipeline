@@ -1,122 +1,135 @@
 {
-  "meeting_id": "MTG-20250115-001",
-  "meeting_title": "IT System Migration & Budget Review",
+  "schema_version": "1.0.0",
+  "meeting_id": "56e6d20b-8dc7-441a-b25b-de7098860fe2",
   "meeting_date": "2025-01-15",
-  "meeting_time_start": "09:30",
-  "meeting_time_end": null,
-  "venue": null,
+  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\mock_labeled_mixed.txt",
   "participants": [
     {
-      "name": "Ahmad Faizal",
-      "role": null,
+      "label": "Ahmad Faizal",
       "department": "Information Technology",
-      "department_confidence": "resolved"
+      "department_confidence": "explicit",
+      "label_source": "explicit"
     },
     {
-      "name": "Siti Nabilah",
-      "role": null,
+      "label": "Siti Nabilah",
       "department": "Finance",
-      "department_confidence": "resolved"
+      "department_confidence": "explicit",
+      "label_source": "explicit"
     },
     {
-      "name": "Rajan Kumar",
-      "role": null,
+      "label": "Rajan Kumar",
       "department": "Engineering & Maintenance",
-      "department_confidence": "resolved"
+      "department_confidence": "explicit",
+      "label_source": "explicit"
     },
     {
-      "name": "Nurul Ain",
-      "role": null,
+      "label": "Nurul Ain",
       "department": "Human Resources",
-      "department_confidence": "resolved"
+      "department_confidence": "explicit",
+      "label_source": "explicit"
     }
   ],
-  "minutes_prepared_by": null,
   "agenda_items": [
     {
-      "index": 1,
+      "id": "agenda-001",
       "title": "System Migration Project Status Review",
-      "summary": "Ahmad Faizal opened the review of the ongoing system migration project. The migration involves three phases: database migration, application layer migration, and user acceptance testing, targeting completion by end of Q1. Key challenge is data mapping between old and new schemas. The new system supports mobile approval for leave applications. Parallel-run payroll integration testing will run for at least two pay cycles before full cutover, with two engineers specifically allocated for this."
+      "confidence": "explicit",
+      "summary": "Review of the IT system migration project covering database migration, application layer migration, user acceptance testing, data mapping challenges, and payroll integration parallel-run testing plans."
     },
     {
-      "index": 2,
-      "title": "Budget Approval for System Migration",
-      "summary": "Siti Nabilah presented the total projected migration cost of RM 240,000, covering licensing fees, infrastructure upgrade, and professional services. The largest component is cloud infrastructure at RM 120,000 for the first year. The vendor agreed to a phased payment structure: 40% upfront, 30% at go-live, and 30% at three months post-go-live. All attendees agreed to proceed with this structure. The decision was formalised by Ahmad Faizal."
+      "id": "agenda-002",
+      "title": "Budget Approval",
+      "confidence": "explicit",
+      "summary": "Review and approval of the RM 240,000 migration budget, including licensing, infrastructure, and professional services costs, with a phased payment structure agreed by all departments."
     }
   ],
-  "formal_decisions": [
+  "decisions": [
     {
-      "decision_id": "DEC-001",
-      "description": "Projek migrasi sistem akan diteruskan dengan struktur pembayaran berperingkat seperti yang dibentangkan oleh Siti Nabilah, dengan jumlah kos keseluruhan RM 240,000.",
-      "decision_english": "The system migration project will proceed with the phased payment structure as presented by Siti Nabilah, at a total cost of RM 240,000.",
-      "trigger_marker": "Diputuskan",
+      "id": "decision-001",
+      "statement": "Rajan's team will conduct parallel-run testing for payroll integration for at least two pay cycles before full cut-over, with two engineers dedicated to this testing.",
+      "confidence": "inferred",
+      "speaker_label": "Ahmad Faizal",
+      "agenda_item_id": "agenda-001"
+    },
+    {
+      "id": "decision-002",
+      "statement": "Diputuskan bahawa projek migrasi sistem akan diteruskan dengan struktur pembayaran berperingkat (40% upfront, 30% at go-live, 30% at three months post-go-live) seperti yang dibentangkan oleh Siti Nabilah, dengan jumlah kos keseluruhan RM 240,000.",
       "confidence": "explicit",
-      "agenda_item_ref": 2
+      "speaker_label": "Ahmad Faizal",
+      "agenda_item_id": "agenda-002"
     }
   ],
   "action_items": [
     {
-      "action_id": "ACT-001",
-      "description": "Prepare a Gantt chart with all project milestones and share on Teams",
+      "id": "action-001",
+      "description": "Prepare a detailed technical timeline (Gantt chart) with all migration milestones and share it on Teams.",
       "assignee": "Rajan Kumar",
-      "assignee_status": "confirmed",
-      "department_ref": "Engineering & Maintenance",
-      "priority": "high",
+      "assignee_status": "resolved",
       "deadline": "2025-01-22",
-      "deadline_status": "explicit",
-      "trigger_marker": "Will do la",
-      "agenda_item_ref": 1
+      "deadline_status": "resolved",
+      "agenda_item_id": "agenda-001",
+      "raw_text": "Will do la. I'll prepare a Gantt chart with all the milestones and share it on Teams.",
+      "normalisation_confidence": "low"
     },
     {
-      "action_id": "ACT-002",
-      "description": "Hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan untuk kelulusan rasmi",
+      "id": "action-002",
+      "description": "Hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan untuk kelulusan rasmi.",
       "assignee": "Siti Nabilah",
-      "assignee_status": "confirmed",
-      "department_ref": "Finance",
-      "priority": "high",
+      "assignee_status": "resolved",
       "deadline": "2025-01-22",
-      "deadline_status": "explicit",
-      "trigger_marker": "Sila hantar",
-      "agenda_item_ref": 2
+      "deadline_status": "resolved",
+      "agenda_item_id": "agenda-002",
+      "raw_text": "Siti, Sila hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan sebelum 22 Januari 2025 untuk kelulusan rasmi.",
+      "normalisation_confidence": "high"
     },
     {
-      "action_id": "ACT-003",
-      "description": "Consolidate HR module requirements from all HR users and send to Rajan's team for system configuration",
+      "id": "action-003",
+      "description": "Draft the budget approval memo and get it signed off.",
+      "assignee": "Siti Nabilah",
+      "assignee_status": "resolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-002",
+      "raw_text": "Ok no problem. I'll draft the budget approval memo and get it signed off.",
+      "normalisation_confidence": "high"
+    },
+    {
+      "id": "action-004",
+      "description": "Consolidate HR module requirements from all HR users and prepare the requirements document.",
       "assignee": "Nurul Ain",
-      "assignee_status": "confirmed",
-      "department_ref": "Human Resources",
-      "priority": "high",
+      "assignee_status": "resolved",
       "deadline": "2025-01-17",
-      "deadline_status": "explicit",
-      "trigger_marker": "boleh you prepare",
-      "agenda_item_ref": 1
+      "deadline_status": "resolved",
+      "agenda_item_id": "agenda-001",
+      "raw_text": "Boleh lah. I'll consolidate the requirements from all HR users and send by Friday.",
+      "normalisation_confidence": "low"
     },
     {
-      "action_id": "ACT-004",
-      "description": "Begin configuration sprint for HR module after receiving requirements from Nurul Ain",
+      "id": "action-005",
+      "description": "Start the configuration sprint using the HR module requirements once received.",
       "assignee": "Rajan Kumar",
-      "assignee_status": "confirmed",
-      "department_ref": "Engineering & Maintenance",
-      "priority": "medium",
+      "assignee_status": "resolved",
       "deadline": "2025-01-20",
-      "deadline_status": "explicit",
-      "trigger_marker": "we can start",
-      "agenda_item_ref": 1
+      "deadline_status": "resolved",
+      "agenda_item_id": "agenda-001",
+      "raw_text": "Perfect. Once we have that, we can start the configuration sprint next Monday.",
+      "normalisation_confidence": "low"
     }
   ],
   "extraction_metadata": {
-    "source_file": "transcripts/mock_labeled_mixed.txt",
-    "source_sha256": "adf368eded4ce125f892ff9c42374ff40d5466428d63a43f008e91e7fde38318",
-    "extraction_status": "success",
-    "near_empty": false,
-    "chunk_index": 1,
-    "total_chunks": 1,
-    "language_detected": "mixed_ms_en_manglish",
-    "speaker_label_mode": "explicit",
-    "warnings": [
-      "SHA-256 adf368... already present in dedup registry from a prior run against different content. Registry entry superseded by this extraction."
+    "extracted_at": "2026-09-18T03:30:14Z",
+    "pipeline_version": "1.0.0",
+    "language_detected": [
+      "ms",
+      "en"
     ],
+    "warnings": [],
     "rules_version": "1.0.0",
-    "extraction_timestamp": "2026-09-17T02:00:00Z"
+    "token_usage": {
+      "input_tokens": 7605,
+      "output_tokens": 3692
+    },
+    "extraction_status": "success",
+    "near_empty": false
   }
 }
