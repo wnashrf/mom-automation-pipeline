@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import threading
+import subprocess
 from pathlib import Path
 import customtkinter as ctk
 from tkinter import filedialog
@@ -316,6 +317,10 @@ class SpeechTextWindowsApp(ctk.CTk):
         target = Path("data").resolve()
         if sys.platform == "win32":
             os.startfile(target)
+        elif sys.platform == "darwin":  # macOS
+            subprocess.run(["open", str(target)])
+        else:  # Linux
+            subprocess.run(["xdg-open", str(target)])
 
 if __name__ == "__main__":
     app = SpeechTextWindowsApp()

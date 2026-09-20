@@ -1,23 +1,17 @@
 {
   "schema_version": "1.0.0",
-  "meeting_id": "22603671-1c4a-4899-b33a-cfcf88b7ce35",
+  "meeting_id": "12f578b8-83a2-4136-9bfa-1a08b5db14ed",
   "meeting_date": null,
-  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\09-15-2026-Council-Meeting.txt",
+  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\Committee of the Whole Meeting Audio 2026-7-14.txt",
   "participants": [
     {
-      "label": "Mayor",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "inferred"
-    },
-    {
-      "label": "Christy Groenheide",
+      "label": "Patrick Terrian",
       "department": "Executive",
       "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Glenn Fuel",
+      "label": "Deputy Mayor Fuel",
       "department": "Executive",
       "department_confidence": "inferred",
       "label_source": "explicit"
@@ -35,48 +29,123 @@
       "label_source": "explicit"
     },
     {
-      "label": "Melinda Warren",
+      "label": "Councillor Warren",
       "department": "Executive",
       "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Darien Vassas",
+      "label": "Councillor Zensky",
       "department": "Executive",
       "department_confidence": "inferred",
-      "label_source": "explicit"
-    },
-    {
-      "label": "Doug Shaver",
-      "department": null,
-      "department_confidence": "unresolved",
       "label_source": "explicit"
     }
   ],
   "agenda_items": [
     {
       "id": "agenda-001",
-      "title": "Land Acknowledgement",
+      "title": "Approval of the Agenda",
       "confidence": "explicit",
-      "summary": "Council acknowledged gathering on Treaty 1 territory, traditional lands of Anishinaabe, Cree, Oji-Cree, Dakota, and Dene peoples, and the national homeland of the Red River Métis."
+      "summary": "Council approved the meeting agenda, with an addition under item 6.4 regarding the Walter Cup celebration information sent by Councillor Kaczynski."
     },
     {
       "id": "agenda-002",
-      "title": "Approval of the Agenda",
+      "title": "Approval of the Minutes (May 12, 2026)",
       "confidence": "explicit",
-      "summary": "Council reviewed the agenda, noted item 8.1 (Bell MTS Tower letter of concurrence) deferred to October 6, and approved the agenda unanimously."
+      "summary": "Council reviewed and approved the minutes from the May 12, 2026 council meeting."
     },
     {
       "id": "agenda-003",
-      "title": "Adoption of Minutes (September 1, 2026)",
+      "title": "Visitor Sign-In Procedure (6.1)",
       "confidence": "explicit",
-      "summary": "Council adopted the minutes of the September 1, 2026 meeting unanimously."
+      "summary": "Council discussed and moved to adopt an amended visitor sign-in procedure, developed in response to an internal IT security test recommendation, requiring visitors to sign in and wear a visitor badge in the municipal office."
+    },
+    {
+      "id": "agenda-004",
+      "title": "Board of Revisions Appointments",
+      "confidence": "explicit",
+      "summary": "Council discussed the composition of the Board of Revisions (expected November), debating whether to continue including two councillors and one private Board Chair, or move to more private/public members, with no final decision made."
+    },
+    {
+      "id": "agenda-005",
+      "title": "RM Public Notice - Community Safety Meeting (6.3)",
+      "confidence": "explicit",
+      "summary": "Update on the second community safety meeting scheduled for July 20th at Dougal Community Club, following closure of a related public survey, to gather further public input on policing options."
+    },
+    {
+      "id": "agenda-006",
+      "title": "Adjournment",
+      "confidence": "explicit",
+      "summary": "Council moved to adjourn the meeting, followed by an administrative briefing meeting."
     }
   ],
-  "decisions": [],
-  "action_items": [],
+  "decisions": [
+    {
+      "id": "decision-001",
+      "statement": "The agenda, with the addition under item 6.4, was unanimously approved.",
+      "confidence": "explicit",
+      "speaker_label": "Patrick Terrian",
+      "agenda_item_id": "agenda-001"
+    },
+    {
+      "id": "decision-002",
+      "statement": "The minutes of the May 12, 2026 council meeting were unanimously approved.",
+      "confidence": "explicit",
+      "speaker_label": "Patrick Terrian",
+      "agenda_item_id": "agenda-002"
+    },
+    {
+      "id": "decision-003",
+      "statement": "Council moved forward with the amended visitor sign-in procedure as presented, including the two tracked changes regarding authorized areas and mandatory exemptions language.",
+      "confidence": "explicit",
+      "speaker_label": null,
+      "agenda_item_id": "agenda-003"
+    },
+    {
+      "id": "decision-004",
+      "statement": "The meeting was unanimously adjourned.",
+      "confidence": "explicit",
+      "speaker_label": "Patrick Terrian",
+      "agenda_item_id": "agenda-006"
+    }
+  ],
+  "action_items": [
+    {
+      "id": "action-001",
+      "description": "Research the criteria previously used for private individuals sitting on the Board of Revision and bring findings back to Council for further discussion.",
+      "assignee": null,
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "unresolvable",
+      "agenda_item_id": "agenda-004",
+      "raw_text": "I know in the past, we've had all private individuals sit, and we did have criteria that they had to meet to sit on the board, so we can research that, and bring that to council next month, and look at it that way again.",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-002",
+      "description": "Look into whether there are any fire code requirements related to knowing who is in the building, in connection with the visitor sign-in procedure.",
+      "assignee": "Patrick Terrian",
+      "assignee_status": "resolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-003",
+      "raw_text": "Yeah, that actually wasn't a consideration, but I might look into it now to see if that's something we should have.",
+      "normalisation_confidence": "high"
+    },
+    {
+      "id": "action-003",
+      "description": "Consider volunteering to sit on the Board of Revision regardless of election outcome, given prior experience.",
+      "assignee": "Councillor Kaczynski",
+      "assignee_status": "resolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-004",
+      "raw_text": "I could volunteer, or I would go on the board, if you want to put my name on there, I can go on the board. Whether I win or lose in this next election, I have the experience, right?",
+      "normalisation_confidence": "high"
+    }
+  ],
   "extraction_metadata": {
-    "extracted_at": "2026-09-20T06:52:55Z",
+    "extracted_at": "2026-09-20T08:05:07Z",
     "pipeline_version": "1.0.0",
     "language_detected": [
       "ms",
@@ -85,7 +154,7 @@
     "warnings": [],
     "rules_version": "1.0.0",
     "token_usage": {
-      "input_tokens": 9268,
+      "input_tokens": 15050,
       "output_tokens": 4096
     },
     "extraction_status": "success",

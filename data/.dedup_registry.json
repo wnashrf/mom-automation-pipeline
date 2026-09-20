@@ -1,11 +1,4 @@
 {
   "registry_version": "1.0.0",
-  "entries": [
-    {
-      "sha256": "adf368eded4ce125f892ff9c42374ff40d5466428d63a43f008e91e7fde38318",
-      "path": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\mock_labeled_mixed.txt",
-      "status": "success",
-      "processed_at": "2026-09-18T03:30:44Z"
-    }
-  ]
+  "entries": []
 }

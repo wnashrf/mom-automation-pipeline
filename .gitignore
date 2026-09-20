@@ -19,3 +19,5 @@ huggingface/
 # Generated local transcripts & output artifacts
 transcripts/*.txt
 !transcripts/mock_labeled_mixed.txt
+data/*.json
+!data/.dedup_registry.json
