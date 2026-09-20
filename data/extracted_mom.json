@@ -1,123 +1,82 @@
 {
   "schema_version": "1.0.0",
-  "meeting_id": "56e6d20b-8dc7-441a-b25b-de7098860fe2",
-  "meeting_date": "2025-01-15",
-  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\mock_labeled_mixed.txt",
+  "meeting_id": "22603671-1c4a-4899-b33a-cfcf88b7ce35",
+  "meeting_date": null,
+  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\09-15-2026-Council-Meeting.txt",
   "participants": [
     {
-      "label": "Ahmad Faizal",
-      "department": "Information Technology",
-      "department_confidence": "explicit",
+      "label": "Mayor",
+      "department": "Executive",
+      "department_confidence": "inferred",
+      "label_source": "inferred"
+    },
+    {
+      "label": "Christy Groenheide",
+      "department": "Executive",
+      "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Siti Nabilah",
-      "department": "Finance",
-      "department_confidence": "explicit",
+      "label": "Glenn Fuel",
+      "department": "Executive",
+      "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Rajan Kumar",
-      "department": "Engineering & Maintenance",
-      "department_confidence": "explicit",
+      "label": "Councillor Kaczynski",
+      "department": "Executive",
+      "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Nurul Ain",
-      "department": "Human Resources",
-      "department_confidence": "explicit",
+      "label": "Councillor Miller",
+      "department": "Executive",
+      "department_confidence": "inferred",
+      "label_source": "explicit"
+    },
+    {
+      "label": "Melinda Warren",
+      "department": "Executive",
+      "department_confidence": "inferred",
+      "label_source": "explicit"
+    },
+    {
+      "label": "Darien Vassas",
+      "department": "Executive",
+      "department_confidence": "inferred",
+      "label_source": "explicit"
+    },
+    {
+      "label": "Doug Shaver",
+      "department": null,
+      "department_confidence": "unresolved",
       "label_source": "explicit"
     }
   ],
   "agenda_items": [
     {
       "id": "agenda-001",
-      "title": "System Migration Project Status Review",
+      "title": "Land Acknowledgement",
       "confidence": "explicit",
-      "summary": "Review of the IT system migration project covering database migration, application layer migration, user acceptance testing, data mapping challenges, and payroll integration parallel-run testing plans."
+      "summary": "Council acknowledged gathering on Treaty 1 territory, traditional lands of Anishinaabe, Cree, Oji-Cree, Dakota, and Dene peoples, and the national homeland of the Red River Métis."
     },
     {
       "id": "agenda-002",
-      "title": "Budget Approval",
+      "title": "Approval of the Agenda",
       "confidence": "explicit",
-      "summary": "Review and approval of the RM 240,000 migration budget, including licensing, infrastructure, and professional services costs, with a phased payment structure agreed by all departments."
-    }
-  ],
-  "decisions": [
-    {
-      "id": "decision-001",
-      "statement": "Rajan's team will conduct parallel-run testing for payroll integration for at least two pay cycles before full cut-over, with two engineers dedicated to this testing.",
-      "confidence": "inferred",
-      "speaker_label": "Ahmad Faizal",
-      "agenda_item_id": "agenda-001"
+      "summary": "Council reviewed the agenda, noted item 8.1 (Bell MTS Tower letter of concurrence) deferred to October 6, and approved the agenda unanimously."
     },
     {
-      "id": "decision-002",
-      "statement": "Diputuskan bahawa projek migrasi sistem akan diteruskan dengan struktur pembayaran berperingkat (40% upfront, 30% at go-live, 30% at three months post-go-live) seperti yang dibentangkan oleh Siti Nabilah, dengan jumlah kos keseluruhan RM 240,000.",
+      "id": "agenda-003",
+      "title": "Adoption of Minutes (September 1, 2026)",
       "confidence": "explicit",
-      "speaker_label": "Ahmad Faizal",
-      "agenda_item_id": "agenda-002"
+      "summary": "Council adopted the minutes of the September 1, 2026 meeting unanimously."
     }
   ],
-  "action_items": [
-    {
-      "id": "action-001",
-      "description": "Prepare a detailed technical timeline (Gantt chart) with all migration milestones and share it on Teams.",
-      "assignee": "Rajan Kumar",
-      "assignee_status": "resolved",
-      "deadline": "2025-01-22",
-      "deadline_status": "resolved",
-      "agenda_item_id": "agenda-001",
-      "raw_text": "Will do la. I'll prepare a Gantt chart with all the milestones and share it on Teams.",
-      "normalisation_confidence": "low"
-    },
-    {
-      "id": "action-002",
-      "description": "Hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan untuk kelulusan rasmi.",
-      "assignee": "Siti Nabilah",
-      "assignee_status": "resolved",
-      "deadline": "2025-01-22",
-      "deadline_status": "resolved",
-      "agenda_item_id": "agenda-002",
-      "raw_text": "Siti, Sila hantar ringkasan persetujuan belanjawan kepada Pengarah Kewangan sebelum 22 Januari 2025 untuk kelulusan rasmi.",
-      "normalisation_confidence": "high"
-    },
-    {
-      "id": "action-003",
-      "description": "Draft the budget approval memo and get it signed off.",
-      "assignee": "Siti Nabilah",
-      "assignee_status": "resolved",
-      "deadline": null,
-      "deadline_status": "missing",
-      "agenda_item_id": "agenda-002",
-      "raw_text": "Ok no problem. I'll draft the budget approval memo and get it signed off.",
-      "normalisation_confidence": "high"
-    },
-    {
-      "id": "action-004",
-      "description": "Consolidate HR module requirements from all HR users and prepare the requirements document.",
-      "assignee": "Nurul Ain",
-      "assignee_status": "resolved",
-      "deadline": "2025-01-17",
-      "deadline_status": "resolved",
-      "agenda_item_id": "agenda-001",
-      "raw_text": "Boleh lah. I'll consolidate the requirements from all HR users and send by Friday.",
-      "normalisation_confidence": "low"
-    },
-    {
-      "id": "action-005",
-      "description": "Start the configuration sprint using the HR module requirements once received.",
-      "assignee": "Rajan Kumar",
-      "assignee_status": "resolved",
-      "deadline": "2025-01-20",
-      "deadline_status": "resolved",
-      "agenda_item_id": "agenda-001",
-      "raw_text": "Perfect. Once we have that, we can start the configuration sprint next Monday.",
-      "normalisation_confidence": "low"
-    }
-  ],
+  "decisions": [],
+  "action_items": [],
   "extraction_metadata": {
-    "extracted_at": "2026-09-18T03:30:14Z",
+    "extracted_at": "2026-09-20T06:52:55Z",
     "pipeline_version": "1.0.0",
     "language_detected": [
       "ms",
@@ -126,8 +85,8 @@
     "warnings": [],
     "rules_version": "1.0.0",
     "token_usage": {
-      "input_tokens": 7605,
-      "output_tokens": 3692
+      "input_tokens": 9268,
+      "output_tokens": 4096
     },
     "extraction_status": "success",
     "near_empty": false

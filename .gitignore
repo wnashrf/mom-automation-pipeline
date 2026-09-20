@@ -1,3 +1,21 @@
-.env
-data/extracted_mom.json.tmp
+# Python Virtual Environments (the node_modules equivalents)
+.venv/
+venv/
+env/
+ENV/
+
+# Python compiled bytecode (already visible in your scripts/__pycache__/)
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & API keys
+.env
+
+# Model weights & Hugging Face local cache
+.cache/
+huggingface/
+
+# Generated local transcripts & output artifacts
+transcripts/*.txt
+!transcripts/mock_labeled_mixed.txt
