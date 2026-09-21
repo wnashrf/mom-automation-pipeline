@@ -96,7 +96,7 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
             client = anthropic.Anthropic(api_key=anthropic_key)
             response = client.messages.create(
                 model="claude-sonnet-5",
-                max_tokens=4096,
+                max_tokens=8192,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )

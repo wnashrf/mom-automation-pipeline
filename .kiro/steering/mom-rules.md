@@ -44,6 +44,10 @@ agreed la, done deal, all agree, go ahead lah,
 we go with this lah, confirmed already, ok la like that,
 everyone agree, boleh la, ok we decide
 
+### 1.4 Exploratory / Vendor Demonstration Decision Rule
+In exploratory walkthroughs, software demos, or informal stakeholder meetings where no formal voting occurs:
+- Extract working consensus, agreed operational guidelines, and agreed trial parameters (e.g., agreeing to use masked dummy data, selecting file format targets, individual user account setups) as valid items in `decisions`.
+
 ---
 
 ## 2. Action Item Markers
@@ -89,6 +93,10 @@ The extraction agent must output each object in `action_items` with the followin
 - `deadline_status`: "explicit" | "relative_to_receipt" | "unresolvable"
 - `trigger_marker`: string
 - `agenda_item_ref`: integer
+
+### 2.5 Exploratory / Next-Step Action Items
+In walkthrough or POC trial discussions, extract operational next steps as `action_items`:
+- Tasks such as preparing dummy template tables, internal fine-tuning experiments, organizing user training/immersion sessions, and scheduling commercial follow-ups must be captured with their respective assignees and deadlines.
 
 ---
 
@@ -232,6 +240,8 @@ token consumption and operating cost.
   Each LLM call is self-contained.
 - **Do not include unrelated context** (e.g., earlier transcript files, user preferences,
   session history) in extraction prompts.
+- **Concise Agenda Summaries**: Keep each agenda item summary strictly between 2 to 3 executive sentences. Do not write lengthy conversational paragraphs in summaries.
+- **Output Priority**: Prioritise full completion of `decisions` and `action_items` arrays over verbose text descriptions.
 
 ---
 

@@ -1,151 +1,214 @@
 {
   "schema_version": "1.0.0",
-  "meeting_id": "12f578b8-83a2-4136-9bfa-1a08b5db14ed",
+  "meeting_id": "8ac458e1-c78e-45e3-9dcf-bd3acf1a44e1",
   "meeting_date": null,
-  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\Committee of the Whole Meeting Audio 2026-7-14.txt",
+  "source_file": "C:\\Users\\Work\\Development\\experiments\\mom-automation\\transcripts\\MOF_Pintar_Dokumen-transcript.txt",
   "participants": [
     {
-      "label": "Patrick Terrian",
+      "label": "Aisyah",
+      "department": "Information Technology",
+      "department_confidence": "inferred",
+      "label_source": "explicit"
+    },
+    {
+      "label": "Encik Kuhan",
+      "department": "Information Technology",
+      "department_confidence": "inferred",
+      "label_source": "explicit"
+    },
+    {
+      "label": "Encik Etan Asilan",
       "department": "Executive",
       "department_confidence": "inferred",
       "label_source": "explicit"
     },
     {
-      "label": "Deputy Mayor Fuel",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "explicit"
-    },
-    {
-      "label": "Councillor Kaczynski",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "explicit"
-    },
-    {
-      "label": "Councillor Miller",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "explicit"
-    },
-    {
-      "label": "Councillor Warren",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "explicit"
-    },
-    {
-      "label": "Councillor Zensky",
-      "department": "Executive",
-      "department_confidence": "inferred",
-      "label_source": "explicit"
+      "label": "Puan",
+      "department": null,
+      "department_confidence": "unresolved",
+      "label_source": "inferred"
     }
   ],
   "agenda_items": [
     {
       "id": "agenda-001",
-      "title": "Approval of the Agenda",
+      "title": "Demonstration of Amazon Quick (AI Pintar Dokumen) for auto-filling MOF document templates",
       "confidence": "explicit",
-      "summary": "Council approved the meeting agenda, with an addition under item 6.4 regarding the Walter Cup celebration information sent by Councillor Kaczynski."
+      "summary": "Paper Labs demonstrated the Amazon Quick AI agent, which uses uploaded ITBM/knowledge-base documents to auto-fill Word/Excel memo templates. The agent first needs context of the source document before it can populate a target template."
     },
     {
       "id": "agenda-002",
-      "title": "Approval of the Minutes (May 12, 2026)",
+      "title": "Data security and cloud processing concerns",
       "confidence": "explicit",
-      "summary": "Council reviewed and approved the minutes from the May 12, 2026 council meeting."
+      "summary": "Team discussed how uploaded documents are processed via the cloud but not permanently stored or used for external model training. Data classification levels (public, confidential, secret) affect what can be uploaded."
     },
     {
       "id": "agenda-003",
-      "title": "Visitor Sign-In Procedure (6.1)",
+      "title": "Use of dummy/masked data for demonstration purposes",
       "confidence": "explicit",
-      "summary": "Council discussed and moved to adopt an amended visitor sign-in procedure, developed in response to an internal IT security test recommendation, requiring visitors to sign in and wear a visitor badge in the municipal office."
+      "summary": "Because some information (e.g., director's fees) is sensitive and not publicly available, the team agreed to mask or use dummy data for demo purposes, while publicly available data (e.g., financial statements) could be used as-is."
     },
     {
       "id": "agenda-004",
-      "title": "Board of Revisions Appointments",
+      "title": "Comparison of Amazon Quick with Gemini Enterprise and ChatGPT",
       "confidence": "explicit",
-      "summary": "Council discussed the composition of the Board of Revisions (expected November), debating whether to continue including two councillors and one private Board Chair, or move to more private/public members, with no final decision made."
+      "summary": "The team compared Amazon Quick's agent-based customization capability against Gemini Enterprise and ChatGPT, noting Quick's advantage in being trainable for a specific use-case (memo/document generation) versus general-purpose chat tools."
     },
     {
       "id": "agenda-005",
-      "title": "RM Public Notice - Community Safety Meeting (6.3)",
+      "title": "Handling of missing information and manual completion workflow",
       "confidence": "explicit",
-      "summary": "Update on the second community safety meeting scheduled for July 20th at Dougal Community Club, following closure of a related public survey, to gather further public input on policing options."
+      "summary": "Discussion on how the AI highlights missing fields (e.g., 'SSX' placeholders) in yellow when data is unavailable in the source document, requiring manual prompting or officer input to complete."
     },
     {
       "id": "agenda-006",
-      "title": "Adjournment",
+      "title": "AGM memo template standardization and notice requirements",
+      "confidence": "inferred",
+      "summary": "Team discussed how AGM memo templates remain structurally fixed across companies but content (e.g., director retirement notices, CVs, dates) varies and must be manually verified by officers."
+    },
+    {
+      "id": "agenda-007",
+      "title": "Next steps: trial, training and desensitized document sharing",
       "confidence": "explicit",
-      "summary": "Council moved to adjourn the meeting, followed by an administrative briefing meeting."
+      "summary": "Team agreed on next steps including running an internal experiment, organizing a training/immersion session, and using desensitized documents shared by MOF for further fine-tuning of the tool."
     }
   ],
   "decisions": [
     {
       "id": "decision-001",
-      "statement": "The agenda, with the addition under item 6.4, was unanimously approved.",
+      "statement": "Team agreed to use masked/dummy data for sensitive fields (e.g., director's fees) while using publicly available data (e.g., financial statements) as-is for the demo.",
       "confidence": "explicit",
-      "speaker_label": "Patrick Terrian",
-      "agenda_item_id": "agenda-001"
-    },
-    {
-      "id": "decision-002",
-      "statement": "The minutes of the May 12, 2026 council meeting were unanimously approved.",
-      "confidence": "explicit",
-      "speaker_label": "Patrick Terrian",
-      "agenda_item_id": "agenda-002"
-    },
-    {
-      "id": "decision-003",
-      "statement": "Council moved forward with the amended visitor sign-in procedure as presented, including the two tracked changes regarding authorized areas and mandatory exemptions language.",
-      "confidence": "explicit",
-      "speaker_label": null,
+      "speaker_label": "Puan",
       "agenda_item_id": "agenda-003"
     },
     {
-      "id": "decision-004",
-      "statement": "The meeting was unanimously adjourned.",
+      "id": "decision-002",
+      "statement": "Agreed that any document deemed safe and non-sensitive by Puan (excluding high-level architecture documents) can be shared for trial purposes.",
       "confidence": "explicit",
-      "speaker_label": "Patrick Terrian",
-      "agenda_item_id": "agenda-006"
+      "speaker_label": "Encik Kuhan",
+      "agenda_item_id": "agenda-007"
+    },
+    {
+      "id": "decision-003",
+      "statement": "Agreed to proceed with the trial process involving Encik Baik and top management using desensitized data first.",
+      "confidence": "explicit",
+      "speaker_label": "Puan",
+      "agenda_item_id": "agenda-007"
+    },
+    {
+      "id": "decision-004",
+      "statement": "Agreed that each user will be registered with an individual email account to access the Quick/Kuit extension.",
+      "confidence": "explicit",
+      "speaker_label": "Aisyah",
+      "agenda_item_id": "agenda-001"
+    },
+    {
+      "id": "decision-005",
+      "statement": "Agreed to prepare a blank fillable table/template as a bridge for officers to manually input variable data before it is fed into Word documents.",
+      "confidence": "explicit",
+      "speaker_label": null,
+      "agenda_item_id": "agenda-005"
+    },
+    {
+      "id": "decision-006",
+      "statement": "Agreed to conduct an internal experiment first before proceeding further with implementation.",
+      "confidence": "explicit",
+      "speaker_label": null,
+      "agenda_item_id": "agenda-007"
     }
   ],
   "action_items": [
     {
       "id": "action-001",
-      "description": "Research the criteria previously used for private individuals sitting on the Board of Revision and bring findings back to Council for further discussion.",
-      "assignee": null,
+      "description": "Prepare masked/dummy financial data and desensitized documents for use in the trial demo.",
+      "assignee": "Puan",
       "assignee_status": "unresolved",
       "deadline": null,
-      "deadline_status": "unresolvable",
-      "agenda_item_id": "agenda-004",
-      "raw_text": "I know in the past, we've had all private individuals sit, and we did have criteria that they had to meet to sit on the board, so we can research that, and bring that to council next month, and look at it that way again.",
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-003",
+      "raw_text": "Boleh la, kalau yang dummy sekarang pun saya rasa it's okay, kita boleh just masking sesuatu macam tu kan",
       "normalisation_confidence": "low"
     },
     {
       "id": "action-002",
-      "description": "Look into whether there are any fire code requirements related to knowing who is in the building, in connection with the visitor sign-in procedure.",
-      "assignee": "Patrick Terrian",
-      "assignee_status": "resolved",
+      "description": "Conduct internal fine-tuning/experiment on Amazon Quick using available documents to improve response quality.",
+      "assignee": "Encik Kuhan",
+      "assignee_status": "unresolved",
       "deadline": null,
       "deadline_status": "missing",
-      "agenda_item_id": "agenda-003",
-      "raw_text": "Yeah, that actually wasn't a consideration, but I might look into it now to see if that's something we should have.",
-      "normalisation_confidence": "high"
+      "agenda_item_id": "agenda-007",
+      "raw_text": "sekarang kita gunakan satu dokumen... jadi dia punya respons dan sebagainya boleh bertambah baik",
+      "normalisation_confidence": "low"
     },
     {
       "id": "action-003",
-      "description": "Consider volunteering to sit on the Board of Revision regardless of election outcome, given prior experience.",
-      "assignee": "Councillor Kaczynski",
-      "assignee_status": "resolved",
+      "description": "Set up individual user email accounts for each MOF officer to access the Quick/Kuit extension.",
+      "assignee": "Aisyah",
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-001",
+      "raw_text": "setiap user nanti kita perlukan email dia untuk kita add ke dalam kuit mail lah",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-004",
+      "description": "Organize an immersion/training session for MOF officers to better understand and use Amazon Quick.",
+      "assignee": "Encik Kuhan",
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-007",
+      "raw_text": "kita akan buat satu immersion untuk memahami lagi tentang Amazon Quid ni",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-005",
+      "description": "Prepare a blank fillable table template (form) for fields requiring manual officer input, to serve as a bridge into the Word document.",
+      "assignee": "Aisyah",
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-005",
+      "raw_text": "boleh sediakan format table yang ni, yang mana kita akan tinggal untuk diisi sendiri oleh pegawai",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-006",
+      "description": "Share the draft template/format with the team for further review and discussion.",
+      "assignee": null,
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-005",
+      "raw_text": "Mungkin nanti boleh sharekan dulu yang macam format tu dulu",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-007",
+      "description": "Confirm with Puan Luaran regarding the classification of the internal memo (memo dalaman).",
+      "assignee": "Puan",
+      "assignee_status": "unresolved",
+      "deadline": null,
+      "deadline_status": "missing",
+      "agenda_item_id": "agenda-006",
+      "raw_text": "Kalau memo daraman itu, saya akan kena confirm dengan Puan Luaran",
+      "normalisation_confidence": "low"
+    },
+    {
+      "id": "action-008",
+      "description": "Follow up with Mr. Cohen (technical department at Paper Labs) for further technical details on the solution.",
+      "assignee": "Encik Kuhan",
+      "assignee_status": "unresolved",
       "deadline": null,
       "deadline_status": "missing",
       "agenda_item_id": "agenda-004",
-      "raw_text": "I could volunteer, or I would go on the board, if you want to put my name on there, I can go on the board. Whether I win or lose in this next election, I have the experience, right?",
-      "normalisation_confidence": "high"
+      "raw_text": "lebih baik tuan cakap dengan Mr. Cohen lah, sebab bahagian badan ni memang Mr. Cohen lah kami bahagian teknikal",
+      "normalisation_confidence": "low"
     }
   ],
   "extraction_metadata": {
-    "extracted_at": "2026-09-20T08:05:07Z",
+    "extracted_at": "2026-09-21T04:03:50Z",
     "pipeline_version": "1.0.0",
     "language_detected": [
       "ms",
@@ -154,8 +217,8 @@
     "warnings": [],
     "rules_version": "1.0.0",
     "token_usage": {
-      "input_tokens": 15050,
-      "output_tokens": 4096
+      "input_tokens": 83839,
+      "output_tokens": 7717
     },
     "extraction_status": "success",
     "near_empty": false
