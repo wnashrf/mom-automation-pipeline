@@ -19,5 +19,15 @@ huggingface/
 # Generated local transcripts & output artifacts
 transcripts/*.txt
 !transcripts/mock_labeled_mixed.txt
+
+# Ignore all uploaded audio/documents but keep the folder
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Ignore generated meeting records but keep the folder
+data/meetings/*
+!data/meetings/.gitkeep
+
+# Ignore root data artifacts
 data/*.json
 !data/.dedup_registry.json

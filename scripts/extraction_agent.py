@@ -43,7 +43,6 @@ def load_steering_rules(path: Path = STEERING_RULES_PATH) -> dict:
 
     try:
         content = path.read_text(encoding="utf-8")
-        # Extract YAML frontmatter
         rules_version = "1.0.0"
         fm_match = re.search(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
         if fm_match:
@@ -68,14 +67,15 @@ def count_words(text: str) -> int:
     return len(cleaned.split())
 
 
-def extract_meeting_date(filename: str, transcript: str) -> str | None:
+def extract_meeting_date(filename_or_text: str, transcript: str) -> str | None:
     """Extract meeting date from YYYYMMDD prefix or regex match."""
-    # Check filename prefix YYYYMMDD
-    fn_match = re.match(r"^(\d{4})(\d{2})(\d{2})", Path(filename).name)
-    if fn_match:
-        return f"{fn_match.group(1)}-{fn_match.group(2)}-{fn_match.group(3)}"
+    try:
+        fn_match = re.match(r"^(\d{4})(\d{2})(\d{2})", Path(filename_or_text).name)
+        if fn_match:
+            return f"{fn_match.group(1)}-{fn_match.group(2)}-{fn_match.group(3)}"
+    except Exception:
+        pass
     
-    # Simple regex fallback in content (YYYY-MM-DD)
     date_match = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", transcript)
     if date_match:
         return date_match.group(1)
@@ -87,12 +87,11 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
     Invoke LLM core. Prioritizes Direct Anthropic API if key is present,
     falls back to Amazon Bedrock, or alerts if neither is configured.
     """
-    # 1. Direct Anthropic API (via ANTHROPIC_API_KEY)
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if anthropic_key:
         try:
             import anthropic
-            logger.info("Connecting to Claude 5 Sonnet via Anthropic API...")
+            logger.info("Connecting to Claude Sonnet via Anthropic API...")
             client = anthropic.Anthropic(api_key=anthropic_key)
             response = client.messages.create(
                 model="claude-sonnet-5",
@@ -100,18 +99,15 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )
-            # Filter out ThinkingBlock items and join text content
             text_blocks = [block.text for block in response.content if getattr(block, "type", None) == "text" or hasattr(block, "text")]
             if not text_blocks:
                 raise ValueError("No text block returned by Claude response.")
             raw_text = "\n".join(text_blocks)
-            # Extract first JSON object block if there is any surrounding text
             match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
             json_clean = match.group(1) if match else raw_text.strip()
             json_clean = re.sub(r"^```(?:json)?\s*", "", json_clean)
             json_clean = re.sub(r"\s*```$", "", json_clean)
 
-            # Robust parse with json_repair fallback
             try:
                 import json_repair
                 parsed = json_repair.loads(json_clean)
@@ -120,9 +116,10 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
 
             return parsed, response.usage.input_tokens, response.usage.output_tokens
         except Exception as exc:
-            logger.warning("Anthropic direct API call failed: %s", exc)
+            logger.error("Anthropic direct API call failed: %s", exc)
+            raise RuntimeError(f"Anthropic API Error: {str(exc)}")
 
-    # 2. AWS Bedrock Runtime
+    # 2. AWS Bedrock Runtime Fallback
     try:
         import boto3
         logger.info("Attempting Amazon Bedrock invocation...")
@@ -145,36 +142,46 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
     except Exception as exc:
         logger.warning("Bedrock invocation unavailable: %s", exc)
 
-    # 3. Fallback dummy if no provider is reachable
     logger.error("No active LLM credentials configured. Falling back to mock data.")
-    raise RuntimeError("No working LLM provider found. Check your .env file or AWS setup.")
+    raise RuntimeError("No working LLM provider found. Check your ANTHROPIC_API_KEY in .env.")
 
 
-def run_extraction(transcript_path: str | Path) -> dict:
+def run_extraction(transcript_input: str | Path) -> dict:
     """
     Main entry point for extraction.
-    Executes near-empty check, prompt construction, LLM extraction, and schema packaging.
+    Accepts either an on-disk file path or raw transcript text directly.
     """
-    transcript_path = Path(transcript_path)
-    if not transcript_path.exists():
-        raise FileNotFoundError(f"Transcript file not found: {transcript_path}")
+    is_file_on_disk = False
+    try:
+        path_candidate = Path(transcript_input)
+        if path_candidate.exists() and path_candidate.is_file():
+            is_file_on_disk = True
+    except Exception:
+        is_file_on_disk = False
 
-    transcript_text = transcript_path.read_text(encoding="utf-8")
+    if is_file_on_disk:
+        transcript_text = Path(transcript_input).read_text(encoding="utf-8")
+        source_label = str(Path(transcript_input).resolve())
+        date_hint_source = Path(transcript_input).name
+    else:
+        transcript_text = str(transcript_input)
+        source_label = "in-memory-transcript"
+        date_hint_source = ""
+
     rules = load_steering_rules()
     word_count = count_words(transcript_text)
     threshold = rules.get("near_empty_word_threshold", 50)
     
-    meeting_date = extract_meeting_date(transcript_path.name, transcript_text)
+    meeting_date = extract_meeting_date(date_hint_source, transcript_text)
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    # Check for near-empty input
     if word_count < threshold:
         logger.warning("Transcript is near-empty (%d words < %d threshold).", word_count, threshold)
         return {
             "schema_version": "1.0.0",
             "meeting_id": str(uuid.uuid4()),
             "meeting_date": meeting_date,
-            "source_file": str(transcript_path.resolve()),
+            "source_file": source_label,
             "participants": [],
             "agenda_items": [],
             "decisions": [],
@@ -191,7 +198,6 @@ def run_extraction(transcript_path: str | Path) -> dict:
             }
         }
 
-    # Construct prompts with strict contract skeleton
     system_prompt = f"""You are a professional meeting minutes extraction engine specialised in multilingual Malaysian workplace communication (Bahasa Melayu, English, Manglish code-switching).
 Extract structured meeting data conforming strictly to MoM_Schema.
 Respond ONLY with a valid JSON object matching the schema. No markdown fencing or explanations outside the JSON.
@@ -252,21 +258,19 @@ RULES:
 {transcript_text}
 
 MEETING_DATE_HINT: {meeting_date if meeting_date else "null"}
-SOURCE_FILE: {str(transcript_path.resolve())}
+SOURCE_FILE: {source_label}
 CHUNK_INDEX: 1 of 1
 
 Extract participants, agenda_items, decisions, and action_items.
 """
 
-    # Run extraction via LLM
     data, in_tokens, out_tokens = call_llm(system_prompt, user_prompt)
 
-    # Package output conforming to MoM_Schema
     result = {
         "schema_version": "1.0.0",
         "meeting_id": str(uuid.uuid4()),
         "meeting_date": meeting_date,
-        "source_file": str(transcript_path.resolve()),
+        "source_file": source_label,
         "participants": data.get("participants", []),
         "agenda_items": data.get("agenda_items", []),
         "decisions": data.get("decisions", []),

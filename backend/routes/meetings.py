@@ -25,6 +25,15 @@ def get_all_meetings():
             continue
     return meetings
 
+@router.get("/{meeting_id}")
+def get_single_meeting(meeting_id: str):
+    """Retrieves a single meeting record by its ID."""
+    file_path = MEETINGS_DIR / f"{meeting_id}.json"
+    if file_path.exists():
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    raise HTTPException(status_code=404, detail="Minit mesyuarat tidak dijumpai.")
+
 @router.post("/save")
 def save_meeting_record(meeting: MeetingModel):
     """Saves or updates a meeting record as JSON."""
@@ -43,5 +52,5 @@ def delete_meeting_record(meeting_id: str):
     file_path = MEETINGS_DIR / f"{meeting_id}.json"
     if file_path.exists():
         file_path.unlink()
-        return {"status": "deleted"}
+        return {"status": "deleted", "id": meeting_id}
     raise HTTPException(status_code=404, detail="Minit tidak dijumpai.")
