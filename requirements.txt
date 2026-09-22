@@ -1,4 +1,17 @@
-requests==2.32.3
-fastapi
-uvicorn
-python-multipart
+# Web Framework & Server (FastAPI + ASGI runner)
+fastapi>=0.141.1
+uvicorn[standard]>=0.53.0
+python-multipart>=0.0.9
+
+# Core Data Validation
+pydantic>=2.13.5
+
+# Speech-to-Text Acoustic Engine
+faster-whisper>=1.2.1
+
+# AI Cognitive Extraction (Claude Sonnet SDK)
+anthropic>=1.6.0
+
+# Runtime Utilities & Configuration
+python-dotenv>=1.2.3
+requests>=2.34.2
