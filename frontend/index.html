@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Penjana Minit Mesyuarat Sektor Awam</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for Screen 2 tracker visuals -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Persistent Header Banner -->
+  <header class="bg-[#1b3a5b] text-white py-5 px-8 shadow-md text-center">
+    <h1 class="text-2xl font-bold tracking-wide">PENJANA MINIT MESYUARAT</h1>
+    <p class="text-xs text-blue-200 mt-1">Sistem Penjanaan Minit Rasmi Sektor Awam Malaysia</p>
+  </header>
+
+  <!-- Navigation Action Pills -->
+  <nav class="max-w-6xl mx-auto w-full px-4 mt-6 flex justify-between items-center">
+    <h2 id="viewHeading" class="text-lg font-bold text-gray-700">Sejarah Minit Mesyuarat</h2>
+    <div class="flex space-x-2">
+      <button onclick="switchView('tracker')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded shadow">
+        Penjejak Tindakan
+      </button>
+      <button onclick="switchView('ingest')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded shadow">
+        AI Ekstrak / Fail
+      </button>
+      <button onclick="switchView('editor', true)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded shadow">
+        + Minit Baharu
+      </button>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto w-full px-4 my-6 flex-1">
+
+    <!-- ==================== SCREEN 1: SEJARAH MINIT (DASHBOARD) ==================== -->
+    <section id="viewHistory" class="space-y-6">
+      <!-- KPI Metric Cards -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-black text-blue-900" id="metricTotal">0</p>
+          <p class="text-xs font-semibold text-gray-500 mt-1">Jumlah Minit</p>
+        </div>
+        <div class="bg-white p-5 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-black text-amber-600" id="metricDraft">0</p>
+          <p class="text-xs font-semibold text-gray-500 mt-1">Draf</p>
+        </div>
+        <div class="bg-white p-5 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-black text-emerald-600" id="metricCompleted">0</p>
+          <p class="text-xs font-semibold text-gray-500 mt-1">Selesai</p>
+        </div>
+      </div>
+
+      <!-- Filter Controls -->
+      <div class="flex flex-col md:flex-row gap-2 justify-between items-center bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+        <input type="text" id="searchMeetings" placeholder="Cari mengikut tajuk, pengerusi, tempat, tarikh..." class="p-2 border border-gray-300 rounded text-xs w-full md:w-80" oninput="filterMeetings()" />
+        <div class="flex space-x-1">
+          <button onclick="filterStatus('all')" class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-gray-100 font-semibold">Semua</button>
+          <button onclick="filterStatus('Draf')" class="text-xs px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">Draf</button>
+          <button onclick="filterStatus('Selesai')" class="text-xs px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">Selesai</button>
+        </div>
+      </div>
+
+      <!-- Meeting Cards Container -->
+      <div id="meetingsList" class="space-y-3"></div>
+    </section>
+
+    <!-- ==================== SCREEN 2: PENJEJAK TINDAKAN ==================== -->
+    <section id="viewTracker" class="hidden space-y-6">
+      <div class="flex justify-start">
+        <button onclick="switchView('history')" class="text-xs bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded shadow">
+          ← Kembali ke Dashboard
+        </button>
+      </div>
+
+      <!-- Tracker KPI Counters -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-bold text-gray-800" id="trTotal">0</p>
+          <p class="text-xs text-gray-500 mt-1">Jumlah</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-bold text-emerald-600" id="trNotStarted">0</p>
+          <p class="text-xs text-gray-500 mt-1">Belum Mula</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border border-gray-200 text-center shadow-sm">
+          <p class="text-2xl font-bold text-blue-600" id="trInProgress">0</p>
+          <p class="text-xs text-gray-500 mt-1">Sedang Berjalan</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border border-red-200 text-center shadow-sm">
+          <p class="text-2xl font-bold text-red-600" id="trOverdue">0</p>
+          <p class="text-xs text-gray-500 mt-1">Tertunggak</p>
+        </div>
+      </div>
+
+      <!-- Charts View -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col items-center">
+          <h3 class="text-xs font-bold uppercase text-gray-600 mb-4">Status Tindakan Susulan</h3>
+          <div class="w-48 h-48">
+            <canvas id="trackerChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-center">
+          <h3 class="text-xs font-bold uppercase text-gray-600 mb-2">Kadar Penyelesaian</h3>
+          <p class="text-4xl font-extrabold text-blue-900 mb-4" id="completionRateText">0%</p>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div id="completionProgressBar" class="bg-blue-600 h-3 rounded-full" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SCREEN 3: INGESTION & AI TRANSCRIBE ==================== -->
+    <section id="viewIngest" class="hidden space-y-6">
+      <div class="flex justify-start">
+        <button onclick="switchView('history')" class="text-xs bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded shadow">
+          ← Kembali ke Dashboard
+        </button>
+      </div>
+
+      <!-- Dropzone Card -->
+      <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <h3 class="text-xs font-bold uppercase text-gray-700 mb-1">Muat Naik Dokumen / Audio Mesyuarat</h3>
+        <p class="text-xs text-gray-500 mb-4">Seret dan lepas fail audio (MP3, WAV, M4A) atau dokumen teks. Enjin Whisper akan mentranskripsikannya secara tempatan.</p>
+
+        <div id="dropZone" class="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-8 text-center cursor-pointer bg-gray-50 transition-all">
+          <svg class="mx-auto h-10 w-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <span class="text-xs font-semibold text-gray-700">Klik atau seret fail ke sini</span>
+          <p class="text-[10px] text-gray-400 mt-1">MP3, WAV, M4A, DOCX, TXT</p>
+          <input type="file" id="audioInput" class="hidden" accept=".mp3,.wav,.m4a,.txt" />
+        </div>
+        <p id="fileStatus" class="mt-2 text-xs font-semibold text-blue-700 hidden"></p>
+      </div>
+
+      <!-- Live Transcript Card -->
+      <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <h3 class="text-xs font-bold uppercase text-gray-700 mb-1">Pengekstrak AI — Transkrip ke Minit</h3>
+        <p class="text-xs text-gray-500 mb-3">Teks transkripsi langsung dipaparkan di sini atau tampal teks perbincangan.</p>
+
+        <textarea id="rawTranscriptText" rows="9" class="w-full p-3 border border-gray-300 rounded text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Transkrip teks perbincangan mesyuarat akan muncul di sini..."></textarea>
+
+        <div class="flex justify-between items-center mt-4">
+          <button onclick="document.getElementById('rawTranscriptText').value=''" class="text-xs text-gray-500 hover:underline">Kosongkan</button>
+          <button id="btnExtractAI" onclick="triggerExtraction()" class="bg-[#1b3a5b] hover:bg-blue-900 text-white text-xs font-semibold px-6 py-2.5 rounded shadow">
+            Ekstrak dengan AI
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SCREEN 4: OFFICIAL MOM EDITOR ==================== -->
+    <section id="viewEditor" class="hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <button onclick="switchView('history')" class="text-xs bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded shadow">
+          ← Kembali ke Dashboard
+        </button>
+        <div class="space-x-2">
+          <button onclick="toggleDocPreview()" id="btnPreviewToggle" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow">
+            Pratonton Dokumen Rasmi
+          </button>
+          <button onclick="saveCurrentMeeting()" class="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow">
+            Simpan Draf ke Sejarah
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab A: Official Form Editor -->
+      <div id="editorFormContainer" class="space-y-6">
+        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-700 border-b pb-2">Maklumat Mesyuarat</h3>
+          <input type="hidden" id="editMeetingId" />
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Tajuk Mesyuarat *</label>
+            <input type="text" id="editTitle" class="w-full p-2 border border-gray-300 rounded text-xs" />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Bilangan Mesyuarat</label>
+              <input type="text" id="editNumber" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Tempat</label>
+              <input type="text" id="editLocation" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Tarikh</label>
+              <input type="date" id="editDate" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Masa Mula</label>
+              <input type="time" id="editStartTime" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Masa Tamat</label>
+              <input type="time" id="editEndTime" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-700 border-b pb-2">Pengerusi & Pencatat</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Nama Pengerusi</label>
+              <input type="text" id="editChairName" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Jawatan Pengerusi</label>
+              <input type="text" id="editChairRole" class="w-full p-2 border border-gray-300 rounded text-xs" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Items Table -->
+        <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-700">Senarai Tindakan Susulan</h3>
+            <button onclick="addActionItemRow()" class="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded font-semibold">+ Tambah Tindakan</button>
+          </div>
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-50 uppercase text-gray-500 font-semibold border-b">
+              <tr>
+                <th class="p-2 w-1/2">Tindakan / Tugas</th>
+                <th class="p-2">Pegawai</th>
+                <th class="p-2">Tarikh Akhir</th>
+                <th class="p-2">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody id="actionItemsTableBody" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab B: Formatted Document View -->
+      <div id="editorPreviewContainer" class="hidden bg-white p-8 rounded-lg border border-gray-200 shadow-sm font-serif">
+        <div class="text-center border-b pb-4 mb-6">
+          <h2 class="text-xl font-bold uppercase tracking-wide" id="prevTitle">MINIT MESYUARAT</h2>
+          <p class="text-sm font-semibold text-gray-700" id="prevNumber"></p>
+        </div>
+        <div class="text-xs space-y-4 text-gray-800 leading-relaxed">
+          <p><strong>Tarikh:</strong> <span id="prevDate"></span></p>
+          <p><strong>Tempat:</strong> <span id="prevLocation"></span></p>
+          <p><strong>Pengerusi:</strong> <span id="prevChair"></span></p>
+          <h4 class="font-bold border-b pt-4 pb-1 uppercase font-sans text-xs text-gray-600">Ringkasan Tindakan & Keputusan:</h4>
+          <ol id="prevActionList" class="list-decimal pl-5 space-y-2"></ol>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Frontend Controller Script -->
+  <script>
+    let allMeetings = [];
+    let currentMeetingData = {};
+    let trackerChartInstance = null;
+
+    // View Routing
+    function switchView(viewName, isNew = false) {
+      document.getElementById('viewHistory').classList.add('hidden');
+      document.getElementById('viewTracker').classList.add('hidden');
+      document.getElementById('viewIngest').classList.add('hidden');
+      document.getElementById('viewEditor').classList.add('hidden');
+
+      const titleMap = {
+        history: 'Sejarah Minit Mesyuarat',
+        tracker: 'Penjejak Tindakan Susulan',
+        ingest: 'Pengekstrak Minit & Audio AI',
+        editor: 'Borang Minit Mesyuarat'
+      };
+      document.getElementById('viewHeading').textContent = titleMap[viewName];
+
+      if (viewName === 'history') {
+        document.getElementById('viewHistory').classList.remove('hidden');
+        fetchMeetings();
+      } else if (viewName === 'tracker') {
+        document.getElementById('viewTracker').classList.remove('hidden');
+        renderTracker();
+      } else if (viewName === 'ingest') {
+        document.getElementById('viewIngest').classList.remove('hidden');
+      } else if (viewName === 'editor') {
+        if (isNew) resetEditorForm();
+        document.getElementById('viewEditor').classList.remove('hidden');
+      }
+    }
+
+    // Load Meetings
+    async function fetchMeetings() {
+      try {
+        const res = await fetch('/api/meetings');
+        allMeetings = await res.json();
+        renderMeetingCards(allMeetings);
+        updateDashboardCounters();
+      } catch (e) {
+        console.error("Failed to load meetings", e);
+      }
+    }
+
+    function updateDashboardCounters() {
+      document.getElementById('metricTotal').textContent = allMeetings.length;
+      document.getElementById('metricDraft').textContent = allMeetings.filter(m => m.status === 'Draf').length;
+      document.getElementById('metricCompleted').textContent = allMeetings.filter(m => m.status === 'Selesai').length;
+    }
+
+    function renderMeetingCards(meetings) {
+      const container = document.getElementById('meetingsList');
+      container.innerHTML = '';
+      if (!meetings.length) {
+        container.innerHTML = `<p class="text-xs text-gray-500 text-center py-6">Tiada rekod minit mesyuarat.</p>`;
+        return;
+      }
+
+      meetings.forEach(m => {
+        const statusBadge = m.status === 'Selesai' 
+          ? '<span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Selesai</span>'
+          : '<span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Draf</span>';
+
+        const card = document.createElement('div');
+        card.className = "bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3";
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center space-x-2">
+              <h4 class="text-sm font-bold text-gray-800">${m.meeting_title}</h4>
+              ${statusBadge}
+            </div>
+            <p class="text-[11px] text-gray-500 mt-1">${m.date || 'Tarikh tidak dinyatakan'} | ${m.location || 'Tempat tidak dinyatakan'}</p>
+          </div>
+          <div class="flex space-x-1">
+            <button onclick="viewMeeting('${m.id}')" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded border">Lihat</button>
+            <button onclick="editMeeting('${m.id}')" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded border">Edit</button>
+            <button onclick="deleteMeeting('${m.id}')" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1 rounded border border-red-200">Padam</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // Audio Ingestion Flow
+    const dropZone = document.getElementById('dropZone');
+    const audioInput = document.getElementById('audioInput');
+    const fileStatus = document.getElementById('fileStatus');
+
+    dropZone.onclick = () => audioInput.click();
+    audioInput.onchange = (e) => { if (e.target.files[0]) handleAudioUpload(e.target.files[0]); };
+
+    async function handleAudioUpload(file) {
+      fileStatus.textContent = `Memuat naik & memproses audio: ${file.name}...`;
+      fileStatus.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
+        const data = await res.json();
+        document.getElementById('rawTranscriptText').value = data.transcript;
+        fileStatus.textContent = `Transkripsi selesai untuk: ${file.name}`;
+      } catch (err) {
+        alert("Ralat semasa transkripsi audio: " + err.message);
+      }
+    }
+
+    async function triggerExtraction() {
+      const transcript = document.getElementById('rawTranscriptText').value.trim();
+      if (!transcript) {
+        alert("Sila masukkan teks transkrip terlebih dahulu.");
+        return;
+      }
+      const btn = document.getElementById('btnExtractAI');
+      btn.textContent = "Mengekstrak via Claude...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript })
+        });
+        const result = await res.json();
+        populateEditorWithExtracted(result.data);
+        switchView('editor');
+      } catch (err) {
+        alert("Ralat pengekstrakan: " + err.message);
+      } finally {
+        btn.textContent = "Ekstrak dengan AI";
+        btn.disabled = false;
+      }
+    }
+
+    function populateEditorWithExtracted(data) {
+      currentMeetingData = data;
+      document.getElementById('editMeetingId').value = '';
+      document.getElementById('editTitle').value = data.meeting_title || '';
+      document.getElementById('editNumber').value = data.meeting_number || '';
+      document.getElementById('editLocation').value = data.location || '';
+      document.getElementById('editDate').value = data.date || '';
+      document.getElementById('editChairName').value = data.chairperson || '';
+
+      const tbody = document.getElementById('actionItemsTableBody');
+      tbody.innerHTML = '';
+      (data.action_items || []).forEach(item => {
+        addActionItemRow(item.task || item.description, item.assignee, item.deadline);
+      });
+    }
+
+    function addActionItemRow(task = '', assignee = '', deadline = '') {
+      const tbody = document.getElementById('actionItemsTableBody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="p-2"><input type="text" value="${task}" class="w-full border rounded p-1 text-xs item-task" /></td>
+        <td class="p-2"><input type="text" value="${assignee}" class="w-full border rounded p-1 text-xs item-assignee" /></td>
+        <td class="p-2"><input type="text" value="${deadline}" class="w-full border rounded p-1 text-xs item-deadline" /></td>
+        <td class="p-2"><button onclick="this.closest('tr').remove()" class="text-red-600 text-xs hover:underline">Padam</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    async function saveCurrentMeeting() {
+      const actionItems = [];
+      document.querySelectorAll('#actionItemsTableBody tr').forEach(row => {
+        actionItems.push({
+          task: row.querySelector('.item-task').value,
+          assignee: row.querySelector('.item-assignee').value,
+          deadline: row.querySelector('.item-deadline').value,
+          status: 'Belum Mula'
+        });
+      });
+
+      const payload = {
+        id: document.getElementById('editMeetingId').value || null,
+        meeting_title: document.getElementById('editTitle').value || 'Mesyuarat Tanpa Tajuk',
+        meeting_number: document.getElementById('editNumber').value,
+        location: document.getElementById('editLocation').value,
+        date: document.getElementById('editDate').value,
+        start_time: document.getElementById('editStartTime').value,
+        end_time: document.getElementById('editEndTime').value,
+        chairperson_name: document.getElementById('editChairName').value,
+        chairperson_role: document.getElementById('editChairRole').value,
+        status: 'Selesai',
+        action_items: actionItems,
+        raw_transcript: document.getElementById('rawTranscriptText').value
+      };
+
+      try {
+        await fetch('/api/meetings/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        alert('Minit mesyuarat berjaya disimpan!');
+        switchView('history');
+      } catch (err) {
+        alert('Ralat menyimpan minit: ' + err.message);
+      }
+    }
+
+    function toggleDocPreview() {
+      const form = document.getElementById('editorFormContainer');
+      const prev = document.getElementById('editorPreviewContainer');
+      const btn = document.getElementById('btnPreviewToggle');
+
+      if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden');
+        prev.classList.add('hidden');
+        btn.textContent = 'Pratonton Dokumen Rasmi';
+      } else {
+        document.getElementById('prevTitle').textContent = document.getElementById('editTitle').value || 'MINIT MESYUARAT';
+        document.getElementById('prevNumber').textContent = document.getElementById('editNumber').value;
+        document.getElementById('prevDate').textContent = document.getElementById('editDate').value || '-';
+        document.getElementById('prevLocation').textContent = document.getElementById('editLocation').value || '-';
+        document.getElementById('prevChair').textContent = document.getElementById('editChairName').value || '-';
+
+        const list = document.getElementById('prevActionList');
+        list.innerHTML = '';
+        document.querySelectorAll('#actionItemsTableBody tr').forEach(r => {
+          const task = r.querySelector('.item-task').value;
+          const assignee = r.querySelector('.item-assignee').value;
+          const dl = r.querySelector('.item-deadline').value;
+          list.innerHTML += `<li><strong>${task}</strong> — Ditugaskan kepada <em>${assignee}</em> (Tarikh Akhir: ${dl})</li>`;
+        });
+
+        form.classList.add('hidden');
+        prev.classList.remove('hidden');
+        btn.textContent = 'Kembali ke Borang';
+      }
+    }
+
+    function resetEditorForm() {
+      document.getElementById('editMeetingId').value = '';
+      document.getElementById('editTitle').value = '';
+      document.getElementById('editNumber').value = '';
+      document.getElementById('editLocation').value = '';
+      document.getElementById('editDate').value = '';
+      document.getElementById('editStartTime').value = '';
+      document.getElementById('editEndTime').value = '';
+      document.getElementById('editChairName').value = '';
+      document.getElementById('editChairRole').value = '';
+      document.getElementById('actionItemsTableBody').innerHTML = '';
+    }
+
+    function renderTracker() {
+      let total = 0, notStarted = 0, inProgress = 0, overdue = 0;
+      allMeetings.forEach(m => {
+        (m.action_items || []).forEach(item => {
+          total++;
+          if (item.status === 'Sedang Berjalan') inProgress++;
+          else if (item.status === 'Tertunggak') overdue++;
+          else notStarted++;
+        });
+      });
+
+      document.getElementById('trTotal').textContent = total;
+      document.getElementById('trNotStarted').textContent = notStarted;
+      document.getElementById('trInProgress').textContent = inProgress;
+      document.getElementById('trOverdue').textContent = overdue;
+
+      const rate = total > 0 ? Math.round(((total - overdue - notStarted) / total) * 100) : 0;
+      document.getElementById('completionRateText').textContent = `${rate}%`;
+      document.getElementById('completionProgressBar').style.width = `${rate}%`;
+
+      const ctx = document.getElementById('trackerChart').getContext('2d');
+      if (trackerChartInstance) trackerChartInstance.destroy();
+      trackerChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Belum Mula', 'Sedang Berjalan', 'Tertunggak'],
+          datasets: [{
+            data: [notStarted || 1, inProgress, overdue],
+            backgroundColor: ['#10b981', '#3b82f6', '#ef4444']
+          }]
+        },
+        options: { plugins: { legend: { display: false } } }
+      });
+    }
+
+    // Initial Load
+    fetchMeetings();
+  </script>
+</body>
+</html>
