@@ -84,66 +84,52 @@ def extract_meeting_date(filename_or_text: str, transcript: str) -> str | None:
 
 def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
     """
-    Invoke LLM core. Prioritizes Direct Anthropic API if key is present,
-    falls back to Amazon Bedrock, or alerts if neither is configured.
+    Invoke LLM core directly via the Anthropic API.
     """
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if anthropic_key:
-        try:
-            import anthropic
-            logger.info("Connecting to Claude Sonnet via Anthropic API...")
-            client = anthropic.Anthropic(api_key=anthropic_key)
-            response = client.messages.create(
-                model="claude-sonnet-5",
-                max_tokens=8192,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
-            )
-            text_blocks = [block.text for block in response.content if getattr(block, "type", None) == "text" or hasattr(block, "text")]
-            if not text_blocks:
-                raise ValueError("No text block returned by Claude response.")
-            raw_text = "\n".join(text_blocks)
-            match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
-            json_clean = match.group(1) if match else raw_text.strip()
-            json_clean = re.sub(r"^```(?:json)?\s*", "", json_clean)
-            json_clean = re.sub(r"\s*```$", "", json_clean)
-
-            try:
-                import json_repair
-                parsed = json_repair.loads(json_clean)
-            except Exception:
-                parsed = json.loads(json_clean)
-
-            return parsed, response.usage.input_tokens, response.usage.output_tokens
-        except Exception as exc:
-            logger.error("Anthropic direct API call failed: %s", exc)
-            raise RuntimeError(f"Anthropic API Error: {str(exc)}")
-
-    # 2. AWS Bedrock Runtime Fallback
-    try:
-        import boto3
-        logger.info("Attempting Amazon Bedrock invocation...")
-        bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
-        model_id = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
-        
-        response = bedrock.converse(
-            modelId=model_id,
-            system=[{"text": system_prompt}],
-            messages=[{"role": "user", "content": [{"text": user_prompt}]}],
-            inferenceConfig={"temperature": 0.0, "maxTokens": 4096}
+    if not anthropic_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY tidak dijumpai. Sila pastikan kunci API anda dimasukkan ke dalam fail .env."
         )
-        output_text = response["output"]["message"]["content"][0]["text"]
-        in_tokens = response["usage"]["inputTokens"]
-        out_tokens = response["usage"]["outputTokens"]
 
-        json_clean = re.sub(r"^```(?:json)?\s*", "", output_text.strip())
+    import anthropic
+
+    logger.info("Connecting to Claude Sonnet via Anthropic API...")
+    client = anthropic.Anthropic(api_key=anthropic_key)
+
+    try:
+        response = client.messages.create(
+            model="claude-3-5-sonnet-latest",
+            max_tokens=8192,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+
+        text_blocks = [
+            block.text
+            for block in response.content
+            if getattr(block, "type", None) == "text" or hasattr(block, "text")
+        ]
+        if not text_blocks:
+            raise ValueError("No text block returned by Claude response.")
+
+        raw_text = "\n".join(text_blocks)
+        match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
+        json_clean = match.group(1) if match else raw_text.strip()
+        json_clean = re.sub(r"^```(?:json)?\s*", "", json_clean)
         json_clean = re.sub(r"\s*```$", "", json_clean)
-        return json.loads(json_clean), in_tokens, out_tokens
-    except Exception as exc:
-        logger.warning("Bedrock invocation unavailable: %s", exc)
 
-    logger.error("No active LLM credentials configured. Falling back to mock data.")
-    raise RuntimeError("No working LLM provider found. Check your ANTHROPIC_API_KEY in .env.")
+        try:
+            import json_repair
+            parsed = json_repair.loads(json_clean)
+        except Exception:
+            parsed = json.loads(json_clean)
+
+        return parsed, response.usage.input_tokens, response.usage.output_tokens
+
+    except Exception as exc:
+        logger.error("Anthropic API call failed: %s", exc)
+        raise RuntimeError(f"Anthropic API Error: {str(exc)}")
 
 
 def run_extraction(transcript_input: str | Path) -> dict:
