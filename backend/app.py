@@ -27,17 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_DIR = ROOT_DIR / "frontend"
-FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
-
-# Mount static asset directory
-app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-
 # Register Modular Routers
 app.include_router(pipeline.router)
 app.include_router(meetings.router)
 app.include_router(export.router)
 
-@app.get("/")
-def serve_ui():
-    return FileResponse(str(FRONTEND_DIR / "index.html"))
+# Mount Compiled React Static Bundle
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

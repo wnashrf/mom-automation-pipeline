@@ -11,6 +11,12 @@ __pycache__/
 
 # Environment variables & API keys
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Model weights & Hugging Face local cache
 .cache/
@@ -31,3 +37,27 @@ data/meetings/*
 # Ignore root data artifacts
 data/*.json
 !data/.dedup_registry.json
+
+# Test, coverage, and runtime logs
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.log
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend build outputs
+backend/static/
+frontend/dist/
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Vite & build caches
+frontend/.vite/
+*.local

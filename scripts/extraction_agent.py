@@ -99,7 +99,7 @@ def call_llm(system_prompt: str, user_prompt: str) -> tuple[dict, int, int]:
 
     try:
         response = client.messages.create(
-            model="claude-3-5-sonnet-latest",
+            model="claude-sonnet-5",
             max_tokens=8192,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],

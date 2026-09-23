@@ -112,7 +112,6 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 
 Do not commit `.env` or expose the key in frontend code. The extraction service reads
 `ANTHROPIC_API_KEY` from the environment and uses Claude Sonnet. 
-```
 
 Keep credentials out of source control. The repository's `.gitignore` is intended to
 exclude local environment files and runtime data that should not be shared.

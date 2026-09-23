@@ -4,7 +4,6 @@ from typing import Dict, Any
 from backend.services.formatter import format_malay_date
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-TEMPLATE_PATH = ROOT_DIR / "frontend" / "templates" / "official_mom.html"
 
 def generate_official_mom_html(meeting: Dict[str, Any]) -> str:
     """Renders the official government MoM formatted layout."""
