@@ -1,32 +1,36 @@
-# Requirements Document
+# Requirements Document: Penjana Minit Mesyuarat
 
 ## Introduction
 
-The Minutes of Meeting (MoM) Automation Pipeline is an end-to-end system that watches a local `transcripts/` directory for raw speech-to-text output files, semantically extracts structured meeting data from mixed-language (Bahasa Melayu / English / Manglish) transcripts, normalises the results into a strict JSON schema, and dispatches the payload to an Amazon Quick Automate/Flow webhook endpoint for enterprise formatting and participant task distribution.
+The **Penjana Minit Mesyuarat** (MoM Automation Platform) is a local-first, privacy-focused web application for Malaysian Public Sector agencies. It converts raw meeting audio or transcript files into structured, schema-validated JSON meeting records and renders them as official printable documents compliant with **Pekeliling Kemajuan Pentadbiran Awam (PKPA) Bilangan 2 Tahun 1991**.
 
-The pipeline is triggered by a Kiro Agent Hook and consists of four principal subsystems: the **Ingestion Hook**, the **Extraction Agent**, the **JSON Output Writer**, and the **Dispatch Bridge**. Behavioural rules governing LLM prompts and extraction heuristics are maintained in `.kiro/steering/mom-rules.md`.
+The system operates entirely on-premises. No meeting data, audio, or transcript content is transmitted to any third-party cloud storage or workflow platform. The LLM extraction call to the Anthropic API is the sole outbound network dependency, and it transmits only the de-identified transcript text required for semantic extraction.
+
+The platform consists of two tiers:
+
+- **Tier 1 — Local Processing Service:** A `faster-whisper` speech-to-text engine and a Claude Sonnet extraction agent, orchestrated by a **FastAPI** REST backend (`backend/`). Meeting records are persisted as flat-file JSON under `data/meetings/`.
+- **Tier 2 — Web UI:** A **React + Vite** Single Page Application (`frontend/`) served directly from the FastAPI process, providing four functional views: Executive Dashboard, Action Tracker, Audio Ingestion & AI Extractor, and Official MoM Editor & Preview.
+
+> **Superseded architecture:** All references to Amazon Quick Automate, Amazon Quick Flows, Quick Spaces (`MoM-Pipeline-Ingestion`), `scripts/dispatch_quick.py`, `scripts/upload_to_space.py`, AWS Bedrock, and `boto3` are **fully deprecated and removed**. The downstream dispatch mechanism is email (`scripts/dispatch_email.py`), not a webhook.
 
 ---
 
 ## Glossary
 
-- **Pipeline**: The end-to-end MoM Automation Pipeline described in this document.
-- **Ingestion_Hook**: The Kiro Agent Hook that monitors `transcripts/` and triggers the Pipeline on new `.txt` files.
-- **Transcript**: A raw `.txt` file produced by the upstream Whisper-based speech-to-text module and placed in `transcripts/`.
-- **Extraction_Agent**: The LLM-backed component that reads a Transcript and performs semantic pattern recognition to identify speakers, departments, agenda items, decisions, and action items.
-- **Normaliser**: The sub-component responsible for resolving code-switching and standardising extracted text into consistent output.
-- **Output_Writer**: The component that validates and persists the structured extraction result to `data/extracted_mom.json`.
-- **Dispatch_Bridge**: The script (`scripts/dispatch_quick.py`) that reads `data/extracted_mom.json` and POSTs the payload to the configured Amazon Quick Automate webhook endpoint.
-- **MoM_Schema**: The strict JSON schema that defines the structure of `data/extracted_mom.json`.
-- **Speaker_Label**: A string identifying a meeting participant, either extracted from the Transcript or auto-assigned (e.g., `"Speaker_1"`).
-- **Action_Item**: A task identified in the Transcript that has an assignee and an optional target deadline.
-- **Agenda_Item**: A distinct discussion topic identified in the Transcript.
-- **Formal_Decision**: A conclusion or resolution explicitly agreed upon during the meeting, as identified in the Transcript.
-- **Code_Switch**: A mid-sentence or mid-utterance transition between Bahasa Melayu, English, and/or Manglish within the Transcript.
+- **Platform**: The end-to-end Penjana Minit Mesyuarat web application described in this document.
+- **Backend**: The FastAPI REST service (`backend/`) hosting all API routes and serving the compiled frontend bundle.
+- **Frontend**: The React + Vite SPA (`frontend/`) compiled into `backend/static/` and served at root `/`.
+- **Transcript**: Raw text (`.txt`) or audio (`.mp3`, `.wav`, `.m4a`) provided by the meeting administrator.
+- **Whisper_Engine**: The local `faster-whisper` speech-to-text component (`scripts/whisper_engine.py`) exposed via `POST /api/transcribe`.
+- **Extraction_Agent**: The LLM-backed component (`scripts/extraction_agent.py`) that calls the Anthropic API (Claude Sonnet) and returns structured MoM data, governed by `.kiro/steering/mom-rules.md`.
+- **MoM_Schema**: The Pydantic-validated JSON schema defining the structure of a meeting record (`backend/models.py`).
+- **Meeting_Record**: A single meeting persisted as `data/meetings/{meeting_id}.json`.
+- **Meeting_Status**: The lifecycle state of a Meeting_Record: `Draf` (Draft) or `Selesai` (Completed).
+- **Action_Item**: A task with an assignee, deadline, and status extracted from or entered into a meeting record.
+- **Action_Item_Status**: `Belum Mula` (Not Started) · `Sedang Berjalan` (In Progress) · `Selesai` (Completed) · `Tertunggak` (Overdue).
+- **PKPA_Document**: An official government meeting minutes document rendered in-memory by `backend/services/document_generator.py` according to PKPA Bil. 2/1991 formatting conventions.
+- **Email_Dispatch**: The outbound notification mechanism (`scripts/dispatch_email.py`) for distributing finalized meeting minutes to participants.
 - **Steering_Rules**: LLM behavioural rules and extraction heuristics defined in `.kiro/steering/mom-rules.md`.
-- **Webhook_Endpoint**: The Amazon Quick Automate/Flow OpenAPI endpoint URL configured for the Dispatch_Bridge.
-- **Deduplication_Registry**: A persistent record (e.g., a file hash store) maintained by the Ingestion_Hook to prevent reprocessing of previously ingested Transcripts.
-- **Near_Empty_Transcript**: A Transcript whose usable text content is fewer than 50 words after stripping whitespace and punctuation.
 
 ---
 
@@ -34,240 +38,189 @@ The pipeline is triggered by a Kiro Agent Hook and consists of four principal su
 
 ---
 
-### Requirement 1: Transcript Ingestion
+### Requirement 1: Audio and Transcript Ingestion
 
-**User Story:** As a meeting administrator, I want the pipeline to automatically detect and ingest new transcript files, so that meeting minutes are processed without manual intervention.
-
-> **Architectural Note — PoC vs. Production Runtime:** The initial proof-of-concept explored Kiro Agent Hooks (`PostFileCreate` trigger, `.kiro/hooks/mom-ingestion.json`) as a convenient local IDE integration point. That mechanism remains valid for developer-session use. However, the **production pipeline runtime** MUST operate **headlessly**, independent of any active IDE or Kiro desktop session. The canonical invocation path is `python scripts/run_pipeline.py [transcript_path]` (CLI) or an equivalent direct service call. The Kiro Hook is considered a developer convenience trigger only and MUST NOT be a runtime dependency for any production or staging deployment.
+**User Story:** As a meeting administrator, I want to upload meeting audio or a raw transcript through the web UI, so that transcription and extraction can be initiated without manual file handling or IDE sessions.
 
 #### Acceptance Criteria
 
-1. WHEN a new `.txt` file is created or moved into the `transcripts/` directory, THE Ingestion_Hook SHALL trigger the Extraction_Agent within 5 seconds of the file system event being detected.
-2. WHILE the Kiro Agent session is active, THE Ingestion_Hook SHALL continuously monitor the `transcripts/` directory for new `.txt` files. In headless/production mode, the equivalent trigger is an explicit invocation of `scripts/run_pipeline.py` with the target transcript path as an argument, requiring no active IDE session.
-3. WHEN a `.txt` file is detected, THE Ingestion_Hook SHALL read the file's SHA-256 hash and compare it against the Deduplication_Registry before triggering extraction.
-4. IF a detected file's SHA-256 hash already exists in the Deduplication_Registry, THEN THE Ingestion_Hook SHALL skip processing and log a duplicate-detection warning that includes the file name and hash.
-5. WHEN a Transcript is successfully ingested, THE Ingestion_Hook SHALL record the file's SHA-256 hash and absolute file path in the Deduplication_Registry.
-6. IF a detected file is unreadable due to a permissions error or I/O failure, THEN THE Ingestion_Hook SHALL log an error message containing the file path and the failure reason, and SHALL NOT halt monitoring of subsequent files.
-7. WHEN multiple new `.txt` files are detected, THE Ingestion_Hook SHALL enqueue each file in FIFO order and process one file at a time to prevent concurrent extraction conflicts.
-8. IF the Extraction_Agent does not acknowledge completion within 30 seconds of being triggered, THEN THE Ingestion_Hook SHALL retry the trigger once; IF the second attempt also exceeds 30 seconds, THEN THE Ingestion_Hook SHALL log a timeout failure for that file, mark it in the Deduplication_Registry with a `"timeout"` status, and continue processing the next queued file.
-9. IF the Deduplication_Registry is unavailable at the time a file is detected, THEN THE Ingestion_Hook SHALL log a warning, suspend deduplication checks, process the file, and resume deduplication checks once the registry becomes available.
+1. THE `IngestView` UI SHALL provide a drag-and-drop file dropzone that accepts audio files (`.mp3`, `.wav`, `.m4a`) and plain text files (`.txt`).
+2. WHEN an audio file is uploaded, THE Frontend SHALL issue a `POST /api/transcribe` multipart request to the Backend; THE Backend SHALL save the file to `data/uploads/`, invoke the Whisper_Engine, and return a JSON response containing `transcript` (full text), `segments_count`, and `filename`.
+3. THE Whisper_Engine SHALL use `faster-whisper` model `large-v3-turbo` with `int8` compute quantization, VAD filtering enabled, and auto language detection supporting Bahasa Melayu / English / Manglish code-switching.
+4. WHEN a `.txt` file is uploaded, THE Frontend SHALL read its content client-side and populate the transcript editor textarea directly, bypassing the Whisper_Engine.
+5. THE `IngestView` SHALL display real-time status feedback during transcription (uploading, transcribing, complete, error), including a segment count indicator on success.
+6. IF `POST /api/transcribe` returns an error, THE Frontend SHALL display a Malay-language error message and allow the user to retry without re-uploading.
+7. THE Backend SHALL operate independently of any active IDE or Kiro agent session; the Whisper_Engine and Extraction_Agent SHALL be invocable headlessly via `scripts/run_pipeline.py` as well as through the API.
 
 ---
 
-### Requirement 2: Speaker Identification
+### Requirement 2: AI-Powered Semantic Extraction
 
-**User Story:** As a meeting participant, I want each spoken contribution to be attributed to the correct speaker, so that the minutes accurately reflect who said what.
+**User Story:** As a meeting secretary, I want the system to automatically extract participants, agenda items, decisions, and action items from a transcript, so that I only need to review and refine rather than type from scratch.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains lines prefixed with a speaker label in the format `SpeakerName:` or `[SpeakerName]`, THE Extraction_Agent SHALL extract the speaker name as a Speaker_Label and associate all subsequent lines with that label until the next speaker label appears.
-2. WHEN a Transcript contains unlabeled lines with no recognisable speaker prefix matching the formats `SpeakerName:` or `[SpeakerName]`, THE Extraction_Agent SHALL assign sequential fallback Speaker_Labels in the format `Speaker_N` (where N is a positive integer starting at 1) in order of first appearance, incrementing N by 1 for each new unlabeled speaker block.
-3. WHEN a Transcript contains speaker name variations that differ only in whitespace, capitalisation, or punctuation-only abbreviations (e.g., `Dr.` vs `Dr`, `J. Smith` vs `J Smith`), THE Extraction_Agent SHALL treat them as the same speaker and normalise all variations to the canonical form of the first occurrence of that name in the Transcript.
-4. WHEN a Transcript contains both labeled and unlabeled lines, THE Extraction_Agent SHALL apply labeled extraction to labeled lines and fallback labeling to unlabeled lines, and IF a generated fallback Speaker_Label (e.g., `Speaker_1`) matches an existing labeled Speaker_Label, THEN THE Extraction_Agent SHALL offset the fallback sequence to the next unused integer to avoid collision before merging both sets into the output.
-5. THE Extraction_Agent SHALL include all identified Speaker_Labels in the `participants` array of the MoM_Schema output.
-6. IF no speaker labels of any kind can be identified in a Transcript, THEN THE Extraction_Agent SHALL assign the single label `Speaker_1` to the entire transcript body and include a warning entry in the `warnings` array of the MoM_Schema output indicating that no speaker labels were detected.
+1. WHEN the user triggers extraction from `IngestView`, THE Frontend SHALL issue a `POST /api/extract` request with `{ "transcript": "<text>" }` as the JSON body.
+2. THE Extraction_Agent SHALL invoke the Anthropic API using model `claude-3-5-sonnet-latest` (or current alias), authenticated via `ANTHROPIC_API_KEY` from the `.env` file. No AWS credentials, boto3, or Bedrock SDK SHALL be used.
+3. THE Extraction_Agent SHALL load `.kiro/steering/mom-rules.md` at extraction start and inject the rules content into the Claude system prompt. IF the steering file is absent, THE Agent SHALL apply built-in default rules and log a warning.
+4. THE Extraction_Agent SHALL return a JSON object conforming to MoM_Schema containing: `participants`, `agenda_items`, `decisions`, `action_items`, and `extraction_metadata` (including `extraction_status`, `token_usage`, `language_detected`, `rules_version`).
+5. WHEN a transcript contains fewer than 50 usable words (after stripping punctuation and whitespace), THE Extraction_Agent SHALL return a partial result with `extraction_status: "partial"`, `near_empty: true`, and all extraction arrays set to `[]`.
+6. IF the Anthropic API returns an error or the response is not parseable as valid JSON, THE Extraction_Agent SHALL retry once with an identical prompt; IF the retry also fails, it SHALL log the error and return `extraction_status: "failed"`.
+7. THE `POST /api/extract` endpoint SHALL return `{ "status": "success", "data": <MoM_Schema_object> }` on success and `{ "status_code": 500, "detail": "<Malay error message>" }` on failure.
+8. AFTER successful extraction, THE Frontend SHALL pre-populate the `EditorView` with the extracted data, routing the user directly to the editor for review.
 
 ---
 
-### Requirement 3: Department Affiliation Extraction
+### Requirement 3: Meeting Record Persistence (CRUD)
 
-**User Story:** As a department head, I want each participant's department to be identified and recorded, so that action items and decisions can be routed to the correct teams.
+**User Story:** As a meeting administrator, I want all meeting records saved persistently, so that I can retrieve, edit, and delete them at any time without losing data.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains explicit department references associated with a speaker (e.g., `"Ahmad, IT Department"` or `"[Siti — Finance]"`), THE Extraction_Agent SHALL extract the department name and associate it with the corresponding Speaker_Label.
-2. WHEN a Transcript contains implicit department signals (e.g., role titles or project names strongly associated with a department), THE Extraction_Agent SHALL infer the likely department and record it with a confidence flag of `"inferred"` in the MoM_Schema output.
-3. WHEN a Transcript contains implicit department signals for a speaker and the same speaker also has an explicit department reference, THE Extraction_Agent SHALL use the explicit reference and SHALL NOT apply the `"inferred"` confidence flag for that speaker.
-4. IF no department affiliation can be determined for a speaker, THEN THE Extraction_Agent SHALL set the department field for that speaker to `null` in the MoM_Schema output.
-5. THE Extraction_Agent SHALL normalise department name variants (e.g., `"IT"`, `"I.T."`, `"Information Technology"`) to a single canonical department name using the Steering_Rules.
-6. IF no canonical department name mapping exists in the Steering_Rules for an extracted department name variant, THEN THE Extraction_Agent SHALL record the department name as extracted without normalisation and SHALL set the confidence flag to `"unresolved"`.
-7. THE Extraction_Agent SHALL include the department affiliation (or `null`) for every entry in the `participants` array of the MoM_Schema output.
+1. EACH meeting record SHALL be stored as a UTF-8 JSON file at `data/meetings/{meeting_id}.json`, where `meeting_id` is a server-generated identifier in the format `meet_{8-char hex}`.
+2. THE `POST /api/meetings/save` endpoint SHALL accept a `MeetingModel` payload, assign a `meeting_id` if none is provided, write the record atomically, and return `{ "status": "success", "id": "<meeting_id>", "data": <record> }`.
+3. THE `GET /api/meetings` endpoint SHALL return a JSON array of all stored meeting records by scanning `data/meetings/*.json`; an empty array SHALL be returned if no records exist.
+4. THE `GET /api/meetings/{meeting_id}` endpoint SHALL return the full meeting record for the given ID, or a 404 with `{ "detail": "Minit mesyuarat tidak dijumpai." }` if not found.
+5. THE `DELETE /api/meetings/{meeting_id}` endpoint SHALL delete the corresponding file and return `{ "status": "deleted", "id": "<meeting_id>" }`, or a 404 if not found.
+6. THE `MeetingModel` SHALL include at minimum: `id`, `meeting_title`, `meeting_number`, `location`, `date` (ISO 8601 `YYYY-MM-DD`), `start_time`, `end_time`, `chairperson_name`, `chairperson_role`, `status` (`Draf` | `Selesai`), `action_items` (array of `ActionItemModel`), and `raw_transcript`.
+7. THE `ActionItemModel` SHALL include: `task`, `assignee` (default `"Belum Ditetapkan"`), `deadline` (default `"-"`), and `status` (default `"Belum Mula"`; valid values: `Belum Mula`, `Sedang Berjalan`, `Selesai`, `Tertunggak`).
+8. THE `status` field of a Meeting_Record SHALL default to `"Draf"` on creation and SHALL be updatable to `"Selesai"` by the user in `EditorView`.
+9. IF `data/meetings/` does not exist, THE Backend SHALL create it automatically on first save.
 
 ---
 
-### Requirement 4: Agenda Item Extraction
+### Requirement 4: Official Document Generation (PKPA Bil. 2/1991)
 
-**User Story:** As a meeting facilitator, I want all agenda topics discussed during the meeting to be captured, so that participants have a clear record of what was covered.
+**User Story:** As a department head, I want to generate a print-ready official meeting minutes document compliant with Malaysian Public Sector formatting standards, so that the output can be signed, archived, and distributed without reformatting.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains explicit agenda markers (e.g., `"Agenda 1:"`, `"Perkara 1:"`, `"Next item:"`, `"Moving on to"`), THE Extraction_Agent SHALL extract the text immediately following each marker up to the next agenda marker (or end of Transcript) as a distinct Agenda_Item with a confidence flag of `"explicit"`.
-2. WHEN a Transcript contains no explicit agenda markers but semantic analysis identifies 2 or more topically distinct segments, THE Extraction_Agent SHALL infer one Agenda_Item per distinct segment and record each with a confidence flag of `"inferred"`.
-3. THE Extraction_Agent SHALL preserve the sequential order of Agenda_Items as they appear in the Transcript.
-4. WHEN a Formal_Decision or Action_Item can be associated with a parent Agenda_Item based on surrounding Transcript context, THE Extraction_Agent SHALL record that association.
-5. IF a Formal_Decision or Action_Item cannot be associated with a parent Agenda_Item, THEN THE Extraction_Agent SHALL set the agenda item association field to `null` for that item.
-6. IF a Transcript contains fewer than 2 topically distinct segments after semantic analysis and no explicit agenda markers, THEN THE Extraction_Agent SHALL record a single Agenda_Item of `"General Discussion"` with a confidence flag of `"inferred"` and log a warning that no structured agenda was detected.
-7. THE Extraction_Agent SHALL include all extracted Agenda_Items in the `agenda_items` array of the MoM_Schema output.
+1. THE `GET /api/export/{meeting_id}/html` endpoint SHALL render and return a complete, standalone HTML document representing the official meeting minutes for the given record.
+2. THE HTML document SHALL be generated entirely in-memory by `backend/services/document_generator.py` without reading any disk-based templates.
+3. THE document SHALL conform to PKPA Bil. 2/1991 layout conventions: Times New Roman serif font, 12pt body size, uppercase meeting title, bilangan (meeting number), metadata table (Tarikh, Masa, Tempat, Pengerusi), horizontal rule, and an action items table with columns Bil, Perkara/Tindakan, Tindakan Oleh, Tarikh Akhir.
+4. THE `Tarikh` field in the rendered document SHALL display the meeting date formatted as Malay long-form (e.g., `15 Januari 2025`), produced by `backend/services/formatter.py::format_malay_date`.
+5. THE rendered HTML SHALL include a "Cetak / Simpan PDF" button visible on screen but hidden during browser print (`@media print { .no-print { display: none; } }`), so the user can produce a PDF via the browser's native print-to-PDF function.
+6. IF the `meeting_id` is not found, THE endpoint SHALL return HTTP 404 with `{ "detail": "Mesyuarat tidak dijumpai." }`.
+7. THE `EditorView` SHALL provide an in-app toggle ("Preview PKPA") that loads the export URL in an embedded `<iframe>` or opens it in a new browser tab, allowing the user to verify the printed layout before finalizing.
 
 ---
 
-### Requirement 5: Formal Decision Extraction
+### Requirement 5: Executive Dashboard (HistoryView)
 
-**User Story:** As a meeting stakeholder, I want all formal decisions reached during the meeting to be explicitly recorded, so that there is an unambiguous record of agreed outcomes.
+**User Story:** As a department head, I want a dashboard showing all past meetings with search and filter capabilities, so that I can quickly locate and manage meeting records.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains explicit decision markers (e.g., `"Diputuskan"`, `"It was decided"`, `"We agreed"`, `"Resolution:"`, `"Setuju"`), THE Extraction_Agent SHALL extract the associated statement as a Formal_Decision and record it with a confidence flag of `"explicit"`.
-2. WHEN a Transcript contains implicit decision language, defined as a statement where two or more speakers express agreement on a specific course of action or outcome without using a formal decision marker, THE Extraction_Agent SHALL extract the statement as a Formal_Decision and record it with a confidence flag of `"inferred"`.
-3. IF the Speaker_Label of the person who stated a Formal_Decision can be determined from the Transcript, THEN THE Extraction_Agent SHALL associate that Formal_Decision with the identified Speaker_Label; otherwise THE Extraction_Agent SHALL set the speaker attribution field to `null`.
-4. IF a Formal_Decision can be associated with a parent Agenda_Item based on the surrounding Transcript context, THEN THE Extraction_Agent SHALL record that association; otherwise THE Extraction_Agent SHALL set the agenda item association field to `null`.
-5. IF a Transcript contains no statements that can be classified as Formal_Decisions, THEN THE Extraction_Agent SHALL set the `decisions` array to an empty array `[]` in the MoM_Schema output.
-6. THE Extraction_Agent SHALL include all extracted Formal_Decisions in the `decisions` array of the MoM_Schema output.
+1. THE `HistoryView` SHALL display KPI metric tiles showing: **Jumlah Minit** (total meeting count), **Draf** (count of records with `status: "Draf"`), and **Selesai** (count of records with `status: "Selesai"`).
+2. THE `HistoryView` SHALL provide a live multi-field search input that filters the visible meeting list in real time across `meeting_title`, `chairperson_name`, `location`, and `date` fields.
+3. THE `HistoryView` SHALL provide status filter pills — **Semua**, **Draf**, **Selesai** — that filter the meeting list by `Meeting_Status`.
+4. EACH meeting SHALL be displayed as a card showing: meeting title, meeting number, date, location, chairperson name, status badge, and three action buttons: **Lihat** (view in preview mode), **Sunting** (open in edit mode), **Padam** (delete with confirmation).
+5. WHEN **Padam** is clicked, THE Frontend SHALL show a confirmation dialog in Bahasa Melayu before issuing `DELETE /api/meetings/{id}`.
+6. WHEN **Lihat** is clicked, THE Frontend SHALL load the meeting record and open `EditorView` in preview mode (`previewMode: true`).
+7. WHEN **Sunting** is clicked, THE Frontend SHALL load the meeting record and open `EditorView` in edit mode (`previewMode: false`).
+8. IF no meetings are stored, THE `HistoryView` SHALL display an empty state message in Bahasa Melayu with a call-to-action to create a new meeting.
 
 ---
 
-### Requirement 6: Action Item Extraction
+### Requirement 6: Action Tracker (TrackerView)
 
-**User Story:** As a project manager, I want all action items — including their assignees and deadlines — to be extracted from the meeting transcript, so that follow-up tasks are tracked and distributed automatically.
+**User Story:** As a project manager, I want a cross-meeting action item tracker, so that I can monitor the status of all follow-up tasks across all meeting records in one place.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains explicit action item language (e.g., `"Action:"`, `"TODO:"`, `"Please prepare"`, `"Sila hantar"`, `"will send"`, `"to submit by"`), THE Extraction_Agent SHALL extract the task description (maximum 500 characters), the assigned Speaker_Label, and the deadline as an Action_Item.
-2. WHEN an Action_Item contains a deadline expressed as a relative date (e.g., `"by next Friday"`, `"dalam 2 minggu"`), THE Extraction_Agent SHALL resolve the relative date against the meeting date extracted from the Transcript or file metadata and record the absolute ISO 8601 date in the `deadline` field.
-3. IF the meeting date cannot be determined from the Transcript or file metadata, THEN THE Extraction_Agent SHALL set the `deadline` field to `null`, set the `deadline_status` field to `"unresolvable"`, and log a warning that relative dates could not be resolved.
-4. IF a deadline cannot be identified for an Action_Item, THEN THE Extraction_Agent SHALL set the `deadline` field to `null` and set the `deadline_status` field to `"missing"` in the MoM_Schema output.
-5. IF an assignee cannot be attributed to an Action_Item, THEN THE Extraction_Agent SHALL set the `assignee` field to `null` and set the `assignee_status` field to `"unresolved"` in the MoM_Schema output.
-6. WHEN an Action_Item can be associated with a parent Agenda_Item based on surrounding Transcript context, THE Extraction_Agent SHALL record that association.
-7. IF an Action_Item cannot be associated with a parent Agenda_Item, THEN THE Extraction_Agent SHALL set the agenda item association field to `null` for that Action_Item.
-8. THE Extraction_Agent SHALL include all extracted Action_Items in the `action_items` array of the MoM_Schema output.
-9. IF a Transcript contains no extractable Action_Items, THEN THE Extraction_Agent SHALL set the `action_items` array to `[]` in the MoM_Schema output.
+1. THE `TrackerView` SHALL aggregate action items across ALL stored meeting records and display KPI counters for: **Jumlah** (total), **Belum Mula** (not started), **Sedang Berjalan** (in progress), **Tertunggak** (overdue).
+2. THE `TrackerView` SHALL display a visual completion percentage bar showing the proportion of action items with `status: "Selesai"` relative to the total.
+3. THE `TrackerView` SHALL display a categorized progress distribution section showing per-status item counts with visual differentiation.
+4. ACTION items from all meetings SHALL be aggregated client-side from the `meetings` state array, which is pre-loaded by `App.jsx` on mount via `GET /api/meetings`.
+5. THE `TrackerView` SHALL display the source meeting title for each action item to provide context.
 
 ---
 
-### Requirement 7: Code-Switching Handling
+### Requirement 7: Official MoM Editor & Preview (EditorView)
 
-**User Story:** As a multilingual meeting participant, I want the pipeline to correctly interpret mixed Bahasa Melayu, English, and Manglish speech, so that no meaning is lost due to language boundaries.
+**User Story:** As a meeting secretary, I want a structured form to author or review all sections of an official meeting minutes document, so that I can produce a complete, accurate record ready for signing.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains a Code_Switch within a single utterance, THE Normaliser SHALL process the entire utterance as a single semantic unit without splitting it at language boundaries, preserving all tokens from the original utterance in the output.
-2. THE Normaliser SHALL recognise Manglish pragmatic particles including "lah", "mah", "lor", "kan", "boleh ke", and "tak boleh", and retain their pragmatic function in the normalised output rather than discarding them as noise.
-3. WHEN extracting Agenda_Items, Formal_Decisions, or Action_Items from a Code_Switch utterance, THE Normaliser SHALL produce output text in English by translating or paraphrasing Bahasa Melayu and Manglish segments, such that the extracted English text conveys the same intent as the original mixed-language utterance.
-4. THE Extraction_Agent SHALL use Steering_Rules to guide extraction of decision and action keywords specific to Bahasa Melayu formal register (e.g., `"Diputuskan"`, `"Dicadangkan"`) and Manglish informal register (e.g., `"ok la we go with"`, `"settle already"`), mapping them to the same extraction outcome as their English equivalents.
-5. IF the Normaliser cannot determine a single unambiguous English interpretation for a Code_Switch segment, THEN THE Extraction_Agent SHALL retain the original mixed-language text in a `raw_text` field alongside the normalised output and set the `normalisation_confidence` field to `"low"`.
-6. THE Normaliser SHALL classify utterances containing Bahasa Melayu formal register markers (e.g., `"Diputuskan bahawa"`) and Bahasa Melayu or Manglish informal register markers (e.g., `"ok kita agree la"`) into the same Agenda_Item, Formal_Decision, or Action_Item categories, producing equivalent classification outcomes for semantically equivalent content regardless of register.
-7. IF a Code_Switch utterance contains a Bahasa Melayu or Manglish segment for which no English equivalent can be derived, THEN THE Normaliser SHALL retain the untranslatable segment verbatim in the output and set the `normalisation_confidence` field to `"low"`.
+1. THE `EditorView` SHALL provide structured input fields for all `MeetingModel` metadata: meeting title, meeting number, date (date picker), start time, end time, venue/location, chairperson name, chairperson role, and meeting status (`Draf` / `Selesai`).
+2. THE `EditorView` SHALL support a dynamic participant badge manager: the user can add participant names, and each participant SHALL be displayed as a removable badge/chip. The participant list SHALL be stored in the meeting record.
+3. THE `EditorView` SHALL provide dynamic agenda cards: each card contains a title, discussion summary textarea, and a list of formal decisions/resolutions. Cards SHALL be addable and removable.
+4. THE `EditorView` SHALL provide an action items matrix: each row contains `task` description, `assignee`, `deadline`, and `status` dropdown. Rows SHALL be addable and removable.
+5. WHEN the user clicks **Simpan** (Save), THE Frontend SHALL issue `POST /api/meetings/save` with the full `MeetingModel` payload and display a Malay-language success or error toast notification.
+6. THE `EditorView` SHALL provide a toggle button to switch between edit mode and the PKPA Bil. 2/1991 printable preview layout. In preview mode, the form fields SHALL be replaced by the formatted document view.
+7. IF `previewMode` is `true`, THE `EditorView` SHALL load the export HTML from `GET /api/export/{meeting_id}/html` in an embedded display (iframe or inline render) to show the final printable layout.
+8. THE `EditorView` SHALL display a back button that returns the user to `HistoryView` and triggers a meetings list refresh.
 
 ---
 
-### Requirement 8: Unlabeled Speaker Handling
+### Requirement 8: Email Dispatch
 
-**User Story:** As a meeting administrator, I want the pipeline to handle transcripts that lack speaker labels, so that extraction still produces useful output even when diarization is absent.
+**User Story:** As a meeting secretary, I want to email the finalized meeting minutes to all participants, so that distribution happens automatically without manual attachment handling.
 
 #### Acceptance Criteria
 
-1. WHEN a Transcript contains no speaker labels, THE Extraction_Agent SHALL assign sequential Speaker_Labels (`Speaker_1`, `Speaker_2`, …) based on paragraph or sentence-level speaker-change heuristics defined in the Steering_Rules, assigning a new label only when a heuristic confidence score meets or exceeds the threshold defined in the Steering_Rules.
-2. WHEN the Extraction_Agent assigns a fallback Speaker_Label, THE Output_Writer SHALL include a `"label_source": "inferred"` field for that participant entry in the MoM_Schema output.
-3. IF two distinct paragraphs in an unlabeled Transcript are assigned the same Speaker_Label and a heuristic confidence score for speaker continuity falls below the threshold defined in the Steering_Rules, THEN THE Extraction_Agent SHALL split those paragraphs into separate Speaker_Labels rather than merging them.
-4. WHEN a Transcript is entirely unlabeled, THE Extraction_Agent SHALL attempt extraction of all Agenda_Items, Formal_Decisions, and Action_Items using inferred speaker attribution, and SHALL include at least one participant entry with an inferred Speaker_Label in the MoM_Schema output when the Transcript contains at least one parseable segment.
-5. IF speaker-change heuristics cannot distinguish any speaker boundaries in an unlabeled Transcript, THEN THE Extraction_Agent SHALL assign all text to `Speaker_1`, set `"label_source": "inferred"` for that entry, and record a warning in the `warnings` array of the MoM_Schema output indicating that no speaker boundaries were detected.
-6. IF the Steering_Rules do not define a speaker-change heuristic or confidence threshold required for unlabeled Transcript processing, THEN THE Extraction_Agent SHALL abort speaker inference, assign all text to `Speaker_1`, and record an error in the `warnings` array of the MoM_Schema output indicating the missing configuration.
+1. A `scripts/dispatch_email.py` module SHALL implement email dispatch of finalized meeting minutes to a configurable list of recipients.
+2. THE dispatch module SHALL read SMTP configuration exclusively from environment variables: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`; IF any required variable is absent, the module SHALL log a configuration error and exit with code `1` without sending any email.
+3. THE dispatch module SHALL accept a `meeting_id` argument, load the corresponding `data/meetings/{meeting_id}.json` record, call `generate_official_mom_html` to produce the document body, and send it as an HTML email with the meeting title as the subject.
+4. THE email SHALL include the PKPA Bil. 2/1991 formatted HTML as the message body, with a plain-text fallback summarizing the meeting title, date, and action item count.
+5. IF an SMTP connection or send error occurs, THE dispatch module SHALL retry up to 3 times with a 5-second delay between attempts, logging each retry attempt. After all retries are exhausted, it SHALL exit with code `1`.
+6. ON successful dispatch, THE dispatch module SHALL log a success message including the `meeting_id`, recipient count, and SMTP server, and exit with code `0`.
+7. A future `POST /api/dispatch/email/{meeting_id}` endpoint SHOULD trigger `dispatch_email.py` from the web UI; this endpoint is deferred to a follow-up sprint.
 
 ---
 
-### Requirement 9: JSON Output
+### Requirement 9: Local-First Privacy & Security
 
-**User Story:** As a downstream integration engineer, I want the extracted meeting data to be saved as a validated, schema-compliant JSON file, so that the Dispatch_Bridge and other consumers can reliably parse and process it.
+**User Story:** As an IT security officer, I want all meeting data processed and stored locally, so that sensitive government meeting content never leaves the on-premises environment except for the controlled LLM API call.
 
 #### Acceptance Criteria
 
-1. WHEN extraction completes successfully, THE Output_Writer SHALL write the structured result to `data/extracted_mom.json`, overwriting any previously existing file at that path.
-2. THE Output_Writer SHALL validate the output object against the MoM_Schema before writing; IF validation fails, THEN THE Output_Writer SHALL log a schema validation error with the specific field violations and SHALL NOT overwrite the existing `data/extracted_mom.json`.
-3. THE MoM_Schema SHALL include, at minimum, the following top-level fields: `schema_version` (string, semver), `meeting_id` (string, UUID v4), `meeting_date` (string, format `YYYY-MM-DD`), `source_file` (string, absolute path), `participants` (array of objects each containing at minimum `label` and `department` fields), `agenda_items` (array), `decisions` (array), `action_items` (array of objects each containing at minimum `description`, `assignee`, `deadline`, `deadline_status`, and `assignee_status` fields), `extraction_metadata` (object).
-4. THE MoM_Schema `extraction_metadata` object SHALL include: `extracted_at` (ISO 8601 timestamp in UTC, format `YYYY-MM-DDTHH:MM:SSZ`), `pipeline_version` (string matching semver pattern `MAJOR.MINOR.PATCH`), `language_detected` (array of BCP 47 language code strings, minimum 1 item), `warnings` (array of strings), `rules_version` (string), `token_usage` (object).
-5. WHEN writing `data/extracted_mom.json`, THE Output_Writer SHALL perform an atomic write (write to a temporary file then rename) to ensure the file is never partially written; THE output SHALL be UTF-8 encoded and pretty-printed with 2-space indentation.
-6. IF the `data/` directory does not exist at write time, THEN THE Output_Writer SHALL create it before writing the file.
-7. THE Output_Writer SHALL include a `schema_version` field at the root of the JSON output containing a semver string to enable future backward-compatible schema evolution.
-8. IF the Output_Writer encounters a file system write error or rename failure during the atomic write, THEN THE Output_Writer SHALL log the error with the OS error code, remove the temporary file if it exists, and SHALL NOT trigger the Dispatch_Bridge.
+1. ALL meeting records, audio uploads, and transcripts SHALL be stored exclusively under `data/` within the local workspace; no data SHALL be written to external cloud storage.
+2. THE Anthropic API call SHALL transmit only the de-identified transcript text required for semantic extraction; meeting metadata (title, participants list, location) SHALL NOT be included in the LLM prompt unless directly embedded in the transcript text.
+3. THE `ANTHROPIC_API_KEY` SHALL be stored exclusively in the `.env` file at the workspace root; it SHALL NOT be committed to version control (`.gitignore` must exclude `.env`).
+4. THE Backend SHALL enforce CORS; in development, `allow_origins=["*"]` is acceptable; in production deployment, origins SHALL be restricted to the local host.
+5. THE `data/uploads/` directory SHALL retain uploaded audio files only for the duration of the session; a cleanup mechanism SHALL remove files older than 24 hours.
+6. THE Platform SHALL NOT depend on any persistent internet connection for core functionality; operation with `ANTHROPIC_API_KEY` absent SHALL degrade gracefully — the `/api/extract` endpoint SHALL return a 503 with a Malay-language message instructing the administrator to configure the API key.
 
 ---
 
-### Requirement 10: Dispatch Bridge
+### Requirement 10: API & Frontend Integration
 
-**User Story:** As an enterprise operations administrator, I want extracted meeting data to be automatically dispatched to the Amazon Quick Automate webhook and/or ingested into the Amazon Quick Space, so that enterprise formatting and participant task distribution happen without manual steps.
-
-> **Dual Delivery Path Architecture:** The Dispatch Bridge supports two complementary downstream handoff mechanisms, both of which may be used together or independently depending on the deployment context:
->
-> - **(a) Programmatic HTTP Dispatch** — `scripts/dispatch_quick.py` issues an HTTP POST directly to the configured OpenAPI/webhook endpoint (`QUICK_AUTOMATE_WEBHOOK_URL`), conforming to the Amazon Quick Automate OpenAPI contract. This path is suited for event-driven server-side invocation and is the primary integration path for automated pipeline runs.
->
-> - **(b) Amazon Quick Space File-Based Ingestion** — `data/extracted_mom.json` is uploaded to the `MoM-Pipeline-Ingestion` Quick Space via the `MoM_File` card, which triggers the associated `Example Flow` within Amazon Quick Flows. This path is suited for manual verification runs, operator-initiated ingestion, and cases where the webhook endpoint is unavailable. The upload may be performed manually or via `scripts/upload_to_space.py`.
+**User Story:** As a developer, I want a clean REST API contract and a correctly built frontend bundle, so that the SPA and backend can be developed and deployed as a single process.
 
 #### Acceptance Criteria
 
-1. WHEN `data/extracted_mom.json` exists on disk, is readable, and parses as valid JSON conforming to the MoM payload structure, THE Dispatch_Bridge SHALL issue an HTTP POST request to the configured Webhook_Endpoint with the JSON payload as the request body and a `Content-Type: application/json` header.
-2. THE Dispatch_Bridge SHALL read the Webhook_Endpoint URL exclusively from the environment variable `QUICK_AUTOMATE_WEBHOOK_URL`; IF the variable is absent or empty at startup, THEN THE Dispatch_Bridge SHALL log a configuration error and exit with a non-zero exit code without making any HTTP request.
-3. WHEN the Webhook_Endpoint returns an HTTP 2xx response, THE Dispatch_Bridge SHALL log a success message including the HTTP status code and the `meeting_id` from the dispatched payload.
-4. IF the Webhook_Endpoint returns an HTTP 4xx response, THEN THE Dispatch_Bridge SHALL log an error with the status code and response body, and SHALL NOT retry the request.
-5. IF the Webhook_Endpoint returns an HTTP 5xx response or the connection times out, THEN THE Dispatch_Bridge SHALL retry the request up to 3 times with exponential backoff (2s, 4s, 8s), logging each retry attempt with the attempt number and elapsed time.
-6. IF all retry attempts are exhausted without a successful 2xx response, THEN THE Dispatch_Bridge SHALL log a final failure message including the `meeting_id`, the number of attempts made, and the last HTTP status code or error, and SHALL exit with a non-zero exit code.
-7. THE Dispatch_Bridge SHALL enforce a per-request connection and read timeout of 30 seconds on the HTTP POST.
-8. IF `data/extracted_mom.json` does not exist or cannot be read at dispatch time, THEN THE Dispatch_Bridge SHALL log a file-not-found or read error and exit with a non-zero exit code without making any HTTP request.
-9. WHEN building the POST payload, THE Dispatch_Bridge SHALL omit any JSON field whose value is `null` unless that field is designated as required in the MoM payload schema; required fields SHALL be transmitted even when their value is `null`.
-10. WHEN `data/extracted_mom.json` is uploaded to the `MoM-Pipeline-Ingestion` Quick Space via the `MoM_File` card, THE pipeline operator SHALL verify that the associated `Example Flow` is triggered within Amazon Quick Flows and that the flow processes the uploaded file without error. This file-based ingestion path is considered validated when the flow execution log confirms receipt and processing of the `meeting_id` contained in the uploaded JSON.
+1. THE Backend (`uvicorn backend.app:app`) SHALL serve the compiled React bundle from `backend/static/` using FastAPI `StaticFiles` mounted at `/`. All routes not matching `/api/*` SHALL fall through to `index.html` for client-side routing.
+2. THE Frontend Vite dev server SHALL proxy `/api/*` requests to `http://localhost:8000` during development, so that frontend and backend can be run independently without CORS issues.
+3. THE compiled frontend bundle SHALL be produced by `cd frontend && npm run build`, which outputs to `frontend/dist/`. The `Makefile` or a build script SHALL copy `frontend/dist/` to `backend/static/` as the deployment step.
+4. ALL API endpoints SHALL use the `/api` prefix. THE `pipeline` router exposes `/api/transcribe` and `/api/extract`. THE `meetings` router exposes `/api/meetings` (CRUD). THE `export` router exposes `/api/export/{id}/html`.
+5. ALL API error responses SHALL include a `detail` field with a Malay-language human-readable message.
+6. THE Backend SHALL enforce a request size limit of at least 100 MB on `POST /api/transcribe` to accommodate meeting audio files.
 
 ---
 
-### Requirement 11: Token Efficiency
+### Requirement 11: Steering Rules
 
-**User Story:** As a system operator, I want LLM prompts used during extraction to be structured for minimal token consumption, so that operating costs remain predictable and latency is kept low.
+**User Story:** As a pipeline maintainer, I want extraction heuristics and LLM behavioural rules centralised in a steering file, so that extraction behaviour can be updated without modifying core code.
 
 #### Acceptance Criteria
 
-1. THE Extraction_Agent SHALL structure all LLM prompts according to the token-efficiency rules defined in the Steering_Rules, including concise instruction phrasing, structured output directives, and avoidance of redundant context.
-2. WHEN a Transcript does not exceed the configurable token limit (default: 12,000 tokens; maximum configurable value: 100,000 tokens), THE Extraction_Agent SHALL use a single consolidated LLM call for the full extraction rather than separate calls per extraction task.
-3. WHEN a Transcript exceeds the configurable token limit, THE Extraction_Agent SHALL split the Transcript into overlapping chunks with a minimum 200-token overlap, process each chunk independently, and merge results by retaining unique items and discarding exact duplicates across chunks; IF a single chunk would exceed the model's context window, THE Extraction_Agent SHALL apply further sub-chunking rather than truncating any segment.
-4. THE Extraction_Agent SHALL include only the Transcript content and the system instructions required to produce the structured MoM output in each LLM call.
-5. THE Extraction_Agent SHALL NOT include full conversation history, prior extraction results, or any context unrelated to the current Transcript in extraction prompts.
-6. THE Extraction_Agent SHALL log the estimated input token count and the reported output token count for each LLM call to `extraction_metadata.token_usage` in the MoM_Schema output.
+1. WHEN an extraction run starts, THE Extraction_Agent SHALL load `.kiro/steering/mom-rules.md` and inject its full content into the Claude system prompt under the `RULES:` section.
+2. THE steering file SHALL define, at minimum: decision markers in Bahasa Melayu and English, action item markers in Bahasa Melayu and English, Manglish pragmatic particles, department canonical mappings, and a `rules_version` YAML front-matter field.
+3. THE steering file content SHALL be portability-safe — structured such that it can be ported verbatim as an Amazon Bedrock system prompt in future cloud migration without transformation.
+4. WHEN `.kiro/steering/mom-rules.md` is absent, THE Extraction_Agent SHALL apply built-in default rules and set `extraction_metadata.rules_version` to `"built-in-default"`.
+5. THE `extraction_metadata.rules_version` in any extraction output SHALL match the `rules_version` value loaded from the steering file at extraction start.
 
 ---
 
-### Requirement 12: Error Handling
+### Requirement 12: Headless CLI Runner
 
-**User Story:** As a system operator, I want the pipeline to handle all foreseeable failure modes gracefully, so that a single bad transcript or a transient network failure does not corrupt state or halt the system.
-
-#### Acceptance Criteria
-
-1. WHEN a Transcript file is detected to be empty (zero bytes), THE Ingestion_Hook SHALL skip extraction, log a warning that includes the file name, and resume watching for new Transcript files without exiting.
-2. WHEN a Transcript is classified as a Near_Empty_Transcript (fewer than 50 usable words), THE Extraction_Agent SHALL attempt extraction, record a `"near_empty": true` flag in `extraction_metadata`, set all extraction arrays to `[]`, and log a warning that includes the file name and the usable word count.
-3. IF the Extraction_Agent receives a response from the LLM that is not valid JSON or is missing required top-level extraction fields, THEN THE Extraction_Agent SHALL retry the LLM call once with an identical prompt; IF the second attempt also produces an invalid or incomplete response, THEN THE Extraction_Agent SHALL log the error, write a partial MoM_Schema with `"extraction_status": "failed"`, and not invoke the Dispatch_Bridge for that Transcript.
-4. IF the Output_Writer encounters a file system write error when saving `data/extracted_mom.json`, THEN THE Output_Writer SHALL log the error with the OS error code and SHALL NOT trigger the Dispatch_Bridge.
-5. IF the Dispatch_Bridge cannot reach the Webhook_Endpoint due to DNS resolution failure or network unavailability, THEN THE Dispatch_Bridge SHALL log the connectivity error and SHALL exit with a non-zero exit code without retrying.
-6. WHEN any unhandled exception propagates to the top-level Pipeline error handler, THE Pipeline SHALL log the exception type, message, and stack trace to a dedicated error log, and SHALL update the `extraction_metadata.extraction_status` field to `"error"` in the output file if that file already exists on disk.
-7. THE Pipeline SHALL NOT allow an error in one Transcript's processing to prevent the Ingestion_Hook from processing subsequently queued Transcripts.
-
----
-
-### Requirement 13: Steering Rules
-
-**User Story:** As a pipeline maintainer, I want extraction heuristics and LLM behavioural rules to be centralised in a steering file, so that the pipeline's behaviour can be updated without modifying core code.
+**User Story:** As a system operator, I want to run the full extraction pipeline from the command line without launching the web server, so that batch processing and scheduled jobs are possible.
 
 #### Acceptance Criteria
 
-1. WHEN an extraction run starts, THE Extraction_Agent SHALL load the rules defined in `.kiro/steering/mom-rules.md` and apply them before processing any transcript input.
-2. THE Steering_Rules file SHALL define, at minimum: a keyword list of 1–200 decision markers in Bahasa Melayu, a keyword list of 1–200 decision markers in English, a keyword list of 1–200 action item markers in Bahasa Melayu, a keyword list of 1–200 action item markers in English, speaker-change heuristics for unlabeled transcripts, department name canonical mappings, and LLM prompt templates for extraction tasks.
-3. WHEN `.kiro/steering/mom-rules.md` is absent at extraction start, THE Extraction_Agent SHALL log a critical warning indicating the file path was not found, apply built-in default rules, and proceed with the extraction run.
-4. WHEN `.kiro/steering/mom-rules.md` is present but contains a parsing error, THE Extraction_Agent SHALL log an error message indicating the affected line number, apply built-in default rules, and continue extraction.
-5. THE Steering_Rules file SHALL include a `rules_version` field as the first field of the file containing a non-empty string value; WHEN an extraction run completes, THE Extraction_Agent SHALL record the loaded `rules_version` value in the `extraction_metadata` of the output.
-6. IF a parsed Steering_Rule value conflicts with a hard-coded pipeline constraint, THEN THE Extraction_Agent SHALL apply the hard-coded pipeline constraint and log a warning identifying the conflicting rule name and the constraint that takes precedence.
-
----
-
-### Requirement 14: Architecture Decoupling & Target State
-
-**User Story:** As a solutions architect, I want the extraction service to run fully independently of the Kiro desktop application, so that the pipeline can be migrated to a cloud-native AWS deployment without re-engineering core logic.
-
-> **Design Principle:** Kiro serves as the **Phase 1 Prompt Engineering and Schema Validation Workbench** — it is the environment in which extraction prompts are authored, steering rules are refined, and the JSON schema is validated against real transcript fixtures. Kiro is NOT a runtime dependency for production execution. From Phase 2 onward, the prompt engineering artefacts (`.kiro/steering/mom-rules.md`) are ported to Amazon Bedrock and execution is orchestrated by AWS Lambda and S3 event triggers.
-
-#### Acceptance Criteria
-
-1. THE extraction service (encompassing deduplication check, LLM-backed extraction, schema validation, and atomic JSON write) SHALL be fully invocable as a standalone process via `python scripts/run_pipeline.py [transcript_path]` without any Kiro IDE process, agent session, or desktop hook being active.
-2. THE standalone runner SHALL accept a transcript file path as its primary argument and SHALL execute the complete pipeline sequence — deduplication check → extraction → schema validation → atomic write to `data/extracted_mom.json` — as a single deterministic CLI command with a zero exit code on success and a non-zero exit code on any failure.
-3. THE pipeline MUST NOT import, depend on, or communicate with any Kiro IDE API, VS Code extension host, or agent session runtime component. All runtime dependencies SHALL be expressible as standard Python package requirements in `requirements.txt`.
-4. WHEN the pipeline is operating in headless mode (i.e., invoked via `scripts/run_pipeline.py` rather than via a Kiro Hook), the deduplication registry, output file, and dispatch behaviour SHALL be identical to hook-triggered execution; no behavioural differences are permitted between the two invocation paths.
-5. THE steering rules defined in `.kiro/steering/mom-rules.md` SHALL be structured such that they can be ported verbatim or with minimal transformation to an Amazon Bedrock system prompt, enabling Phase 2 migration without loss of extraction fidelity.
-6. THE cloud migration target state is defined as follows:
-   - **Phase 1 (Current):** Kiro IDE — prompt engineering workbench, local extraction via Python scripts, Amazon Quick Flows via webhook or Quick Space file upload.
-   - **Phase 2:** Amazon Bedrock (Claude 3.5 Sonnet / Amazon Nova) replaces the Kiro LLM extraction call; steering rules ported to Bedrock system prompt; pipeline orchestration moves to AWS Lambda triggered by S3 `ObjectCreated` events.
-   - **Phase 3 (MOTAC Production):** Full AWS-native architecture — S3 transcript ingestion, Lambda extraction, DynamoDB deduplication registry, Amazon Quick Flows triggered via SDK handoff; Kiro desktop is no longer involved in any runtime path.
-7. THE extraction service architecture SHALL maintain a clean boundary between the **Tier 1 Standalone Extraction Service** (deduplication, LLM parsing, schema validation, atomic JSON write — executable locally or as a Lambda function) and the **Tier 2 Enterprise Orchestration Layer** (Amazon Quick Flows triggered via Quick Space `MoM-Pipeline-Ingestion` file upload or direct SDK handoff), such that either tier can be upgraded, replaced, or redeployed independently.
+1. `scripts/run_pipeline.py` SHALL accept a transcript file path as a required positional argument and an optional `--output` flag (default: `data/extracted_mom.json`).
+2. THE CLI runner SHALL execute the complete sequence: deduplication check → Whisper transcription (if audio file) or direct read (if `.txt`) → Extraction_Agent → schema validation → atomic write to `--output` path.
+3. THE CLI runner SHALL exit with code `0` on success (including clean duplicate-skip) and code `1` on any failure.
+4. THE CLI runner SHALL NOT import any Kiro IDE, VS Code extension host, or agent session API. All dependencies SHALL be satisfiable from `requirements.txt`.
+5. WHEN the input file's SHA-256 hash is already present in `data/.dedup_registry.json` with `status: "success"`, THE CLI runner SHALL log a duplicate-detection warning and exit `0` without re-extracting.
