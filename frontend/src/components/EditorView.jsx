@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function EditorView({ meeting, previewMode, setPreviewMode, onBack }) {
   const [formData, setFormData] = useState({
@@ -18,6 +18,44 @@ export default function EditorView({ meeting, previewMode, setPreviewMode, onBac
   });
 
   const [newParticipant, setNewParticipant] = useState({ label: '', department: '' });
+
+  useEffect(() => {
+    if (!meeting) return;
+    setFormData({
+      id: meeting.id || null,
+      meeting_title: meeting.meeting_title || meeting.title || '',
+      meeting_number: meeting.meeting_number || '',
+      location: meeting.location || '',
+      date: meeting.date || meeting.meeting_date || '',
+      start_time: meeting.start_time || '',
+      end_time: meeting.end_time || '',
+      chairperson_name: meeting.chairperson_name || '',
+      chairperson_role: meeting.chairperson_role || '',
+      participants: Array.isArray(meeting.participants)
+        ? meeting.participants.map((p) =>
+            typeof p === 'string'
+              ? { label: p, department: '' }
+              : { label: p.label || p.name || '', department: p.department || '' }
+          )
+        : [],
+      agenda_items: Array.isArray(meeting.agenda_items)
+        ? meeting.agenda_items.map((ag) => ({
+            title: ag.title || ag.tajuk || '',
+            summary: ag.summary || ag.ringkasan || '',
+            decision: ag.decision || ag.keputusan || '',
+          }))
+        : [],
+      action_items: Array.isArray(meeting.action_items)
+        ? meeting.action_items.map((act) => ({
+            task: act.task || act.description || '',
+            assignee: act.assignee || '',
+            deadline: act.deadline || '',
+            status: act.status || 'Belum Mula',
+          }))
+        : [],
+      raw_transcript: meeting.raw_transcript || '',
+    });
+  }, [meeting]);
 
   // Update Field Helper
   const updateField = (field, value) => {

@@ -40,11 +40,13 @@ def save_meeting_record(meeting: MeetingModel):
     meeting_id = meeting.id or f"meet_{uuid.uuid4().hex[:8]}"
     meeting.id = meeting_id
 
+    data = meeting.model_dump() if hasattr(meeting, "model_dump") else meeting.dict()
+
     file_path = MEETINGS_DIR / f"{meeting_id}.json"
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(meeting.dict(), f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
-    return {"status": "success", "id": meeting_id, "data": meeting.dict()}
+    return {"status": "success", "id": meeting_id, "data": data}
 
 @router.delete("/{meeting_id}")
 def delete_meeting_record(meeting_id: str):

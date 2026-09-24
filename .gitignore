@@ -22,10 +22,6 @@ __pycache__/
 .cache/
 huggingface/
 
-# Generated local transcripts & output artifacts
-transcripts/*.txt
-!transcripts/mock_labeled_mixed.txt
-
 # Ignore all uploaded audio/documents but keep the folder
 data/uploads/*
 !data/uploads/.gitkeep
@@ -36,7 +32,10 @@ data/meetings/*
 
 # Ignore root data artifacts
 data/*.json
-!data/.dedup_registry.json
+
+# Ignore generated transcript cache but keep the folder
+data/transcripts/*
+!data/transcripts/.gitkeep
 
 # Test, coverage, and runtime logs
 .pytest_cache/
@@ -61,3 +60,6 @@ frontend/node_modules/
 # Vite & build caches
 frontend/.vite/
 *.local
+
+# Personal Doc File
+MIGRATION_NOTE.md
