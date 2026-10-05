@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import HistoryView from './components/HistoryView';
@@ -7,18 +7,19 @@ import IngestView from './components/IngestView';
 import EditorView from './components/EditorView';
 
 export default function App() {
-  const [view, setView] = useState('history');
-  const [meetings, setMeetings] = useState([]);
+  const [view, setView]                     = useState('history');
+  const [meetings, setMeetings]             = useState([]);
   const [currentMeeting, setCurrentMeeting] = useState(null);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [previewMode, setPreviewMode]       = useState(false);
 
+  // Ref to EditorView — lets us call editorRef.current.flush() before unmounting
+  const editorRef = useRef(null);
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const fetchMeetings = async () => {
     try {
       const res = await fetch('/api/meetings');
-      if (res.ok) {
-        const data = await res.json();
-        setMeetings(data);
-      }
+      if (res.ok) setMeetings(await res.json());
     } catch (err) {
       console.error('Failed to load meetings:', err);
     }
@@ -26,34 +27,44 @@ export default function App() {
 
   useEffect(() => {
     fetchMeetings();
+    // No sessionStorage draft-restore on mount.
+    // Drafts are resumed exclusively via the "Edit" button in HistoryView.
   }, []);
 
+  // ── Core navigation helper ─────────────────────────────────────────────────
+  // Before switching away from the editor, flush any pending auto-save so the
+  // draft lands on disk immediately (not after the 3-s debounce expires).
+  const navigateTo = async (newView) => {
+    if (view === 'editor' && newView !== 'editor' && editorRef.current?.flush) {
+      await editorRef.current.flush();
+    }
+    // Leaving the editor or ingest view → clear in-memory state so the next
+    // visit to "Ekstrak AI" or "Minit Baharu" always opens a fresh form.
+    if (newView !== 'editor') {
+      setCurrentMeeting(null);
+      setPreviewMode(false);
+      try { sessionStorage.removeItem('active_meeting_draft'); } catch (_) {}
+      // Refresh the meetings list so History/Tracker always show up-to-date data
+      await fetchMeetings();
+    }
+    setView(newView);
+  };
+
+  // ── Meeting action handlers ────────────────────────────────────────────────
+
+  /** Opens a blank EditorView ready for manual entry. */
   const handleNewMeeting = () => {
-    setCurrentMeeting({
-      id: null,
-      meeting_title: '',
-      meeting_number: '',
-      location: '',
-      date: '',
-      start_time: '',
-      end_time: '',
-      chairperson_name: '',
-      chairperson_role: '',
-      participants: [],
-      agenda_items: [],
-      action_items: [],
-      raw_transcript: ''
-    });
+    setCurrentMeeting(null);
     setPreviewMode(false);
     setView('editor');
   };
 
+  /** Opens a saved meeting in read-only preview mode. */
   const handleSelectMeeting = async (id) => {
     try {
       const res = await fetch(`/api/meetings/${id}`);
       if (res.ok) {
-        const data = await res.json();
-        setCurrentMeeting(data);
+        setCurrentMeeting(await res.json());
         setPreviewMode(true);
         setView('editor');
       }
@@ -62,12 +73,17 @@ export default function App() {
     }
   };
 
+  /**
+   * Opens an existing meeting (draft or completed) in editable form mode.
+   * This is the ONLY way to resume a draft — via the "Edit" button in
+   * HistoryView.  The stable id from the loaded record means every subsequent
+   * save overwrites the same file.
+   */
   const handleEditMeeting = async (id) => {
     try {
       const res = await fetch(`/api/meetings/${id}`);
       if (res.ok) {
-        const data = await res.json();
-        setCurrentMeeting(data);
+        setCurrentMeeting(await res.json());
         setPreviewMode(false);
         setView('editor');
       }
@@ -81,7 +97,7 @@ export default function App() {
     try {
       const res = await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setMeetings(prev => prev.filter(m => m.id !== id));
+        setMeetings((prev) => prev.filter((m) => m.id !== id));
       } else {
         alert('Gagal memadam minit dari pelayan.');
       }
@@ -90,11 +106,29 @@ export default function App() {
     }
   };
 
+  /**
+   * Called by EditorView after "Jana Minit Mesyuarat" succeeds.
+   * EditorView already cleared sessionStorage before calling this.
+   * Awaits the fetch so HistoryView renders with fresh data, not a stale list.
+   */
+  const handleEditorBack = async () => {
+    setCurrentMeeting(null);
+    setPreviewMode(false);
+    await fetchMeetings();   // wait for the updated list before switching view
+    setView('history');
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/20 to-indigo-50/30">
       <Header />
-      <Navigation currentView={view} setView={setView} onNewMeeting={handleNewMeeting} />
-      <main className="max-w-6xl mx-auto w-full px-4 my-6 flex-1">
+      <Navigation
+        currentView={view}
+        setView={navigateTo}
+        onNewMeeting={handleNewMeeting}
+      />
+
+      <main className="max-w-7xl mx-auto px-6 pb-16">
         {view === 'history' && (
           <HistoryView
             meetings={meetings}
@@ -103,31 +137,33 @@ export default function App() {
             onDeleteMeeting={handleDeleteMeeting}
           />
         )}
+
         {view === 'tracker' && (
           <TrackerView
             meetings={meetings}
-            onBack={() => setView('history')}
+            onBack={() => navigateTo('history')}
           />
         )}
+
         {view === 'ingest' && (
           <IngestView
             onExtracted={(data) => {
+              // data already has a stable id and was saved to disk by IngestView
               setCurrentMeeting(data);
               setPreviewMode(false);
               setView('editor');
             }}
-            onBack={() => setView('history')}
+            onBack={() => navigateTo('history')}
           />
         )}
+
         {view === 'editor' && (
           <EditorView
+            ref={editorRef}
             meeting={currentMeeting}
             previewMode={previewMode}
             setPreviewMode={setPreviewMode}
-            onBack={() => {
-              fetchMeetings();
-              setView('history');
-            }}
+            onBack={handleEditorBack}
           />
         )}
       </main>

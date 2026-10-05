@@ -1,5 +1,5 @@
 ---
-rules_version: "1.0.0"
+rules_version: "1.1.0"
 inclusion: auto
 name: MoM Extraction Rules
 description: Steering rules for the MoM Automation Pipeline extraction agent. Activated automatically when processing transcript files or running extraction tasks.
@@ -14,6 +14,78 @@ on the next run without requiring code changes.
 If this file is absent or unparseable, the pipeline falls back to built-in defaults
 and logs a critical warning. The `rules_version` field must remain the first field in
 the front-matter and must be a non-empty string.
+
+---
+
+## 0. Universal Extraction Principles
+
+These rules apply to ALL transcripts regardless of organisation, sector, language, or meeting type.
+
+### 0.1 Comprehensive Attendance Detection
+
+Extract attendees not only from opening roll calls or formal introductions, but by
+monitoring the ENTIRE transcript for movers, seconders, voters, addressed speakers,
+and named participants throughout all discussions.
+
+- If a person MOVES or SECONDS an item (e.g. "Mover: Ahmad, Seconder: Zainab"),
+  that individual MUST appear in `participants` with status `"Hadir"`.
+- External appointees, invited guests, board nominees, community observers, and
+  secretariat staff who are physically present must be included with status `"Turut Hadir"`.
+- When an attendee is referenced ONLY by title/designation (e.g. "the CEO", "Bendahari",
+  "the Deputy Chair"), populate `name` with that title as a placeholder
+  (e.g. `"Ketua Pegawai Eksekutif / CEO"`) — never leave `name` as empty string or null.
+- Derive `jawatan` from contextual clues: role descriptions, voting participation,
+  and organisational hierarchy evident in the transcript.
+
+### 0.2 Intelligent Venue Extraction
+
+- If an explicit room or facility name is stated in the transcript, use it verbatim.
+- If no explicit room is given, infer the venue from the governing body, council name,
+  or organisation name mentioned in the transcript and use the form:
+  `"Bilik Mesyuarat / Dewan [Nama Organisasi]"`.
+- Never return `null` or `"-"` for `venue` when the organisation name is identifiable.
+
+### 0.3 Negative Constraint & Retraction Filtering
+
+Do NOT extract a statement as an action item or decision if:
+- The speaker explicitly retracts or dismisses it
+  (e.g. "that won't be part of the condition", "we decided against that",
+  "cadangan ini ditolak", "kita tidak perlu buat ini").
+- It is framed purely as a hypothetical, suggestion, or informal comment that
+  was not formally moved, seconded, or agreed upon.
+- It is restated from a previous meeting's minutes without a new resolution.
+
+### 0.4 Strict Action Item Status Heuristic
+
+An action item represents work to be completed AFTER the meeting adjourns.
+
+- Even if a motion, appropriation, delegation, or resolution was APPROVED UNANIMOUSLY
+  during the meeting, the resulting implementation task defaults to `"Belum Mula"`,
+  NOT `"Selesai"`, unless the transcript explicitly confirms the task was executed
+  and fully completed before adjournment.
+- `"Selesai"` is only valid when the transcript explicitly states the task was
+  already done (e.g. "laporan telah dikemukakan", "payment was already released").
+- `"Dalam Tindakan"` applies when there is explicit evidence of ongoing work.
+- Always identify the specific functional entity, department, or named official
+  responsible for executing each decision. Use `"Secretariat"` or `"Urusetia"` as
+  the assignee when no specific individual is named but an administrative body is implied.
+
+### 0.5 Structural Flow (Standard Government MoM Outline)
+
+When organising `agenda_items`, follow this canonical chronological order:
+
+1. Perutusan Pengerusi (opening remarks, if any)
+2. Pengesahan Minit Mesyuarat Lepas (adoption of previous minutes — near the BEGINNING)
+3. Perkara-Perkara Berbangkit (follow-ups from previous meetings)
+4. Agenda / Kertas Kerja Baharu (substantive new business items)
+5. Hal-Hal Lain (any other business)
+6. Penangguhan (adjournment)
+
+Rules:
+- Preserve the ACTUAL chronological sequence from the transcript — do not reorder.
+- NEVER create a narrative `agenda_item` entry titled "Tindakan Susulan" inside
+  `agenda_items`. All actionable commitments are captured exclusively in `action_items`.
+- Omit any section not present in the transcript — do not invent empty placeholders.
 
 ---
 

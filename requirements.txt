@@ -15,3 +15,9 @@ anthropic>=1.6.0
 # Runtime Utilities & Configuration
 python-dotenv>=1.2.3
 requests>=2.34.2
+
+# Word document generation
+python-docx>=1.1.2
+
+# JSON repair for LLM output sanitisation
+json-repair>=0.30.0

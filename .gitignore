@@ -62,4 +62,4 @@ frontend/.vite/
 *.local
 
 # Personal Doc File
-MIGRATION_NOTE.md
+PERSONAL_NOTE.md

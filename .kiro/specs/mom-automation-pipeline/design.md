@@ -53,7 +53,7 @@ flowchart TD
     end
 
     subgraph Anthropic["External — Anthropic API"]
-        CL["Claude Sonnet\nclaude-3-5-sonnet-latest\nANTHROPIC_API_KEY"]
+        CL["Claude Sonnet\nclaude-sonnet-5\nANTHROPIC_API_KEY"]
     end
 
     subgraph Email["Outbound Email"]
@@ -210,7 +210,7 @@ Accepts either a file path (reads from disk) or raw string (in-memory from `/api
        CHUNK_INDEX: 1 of 1
 7. call_llm(system_prompt, user_prompt)
        → anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-       → client.messages.create(model="claude-3-5-sonnet-latest", max_tokens=8192)
+       → client.messages.create(model="claude-sonnet-5", max_tokens=8192)
        → parse JSON from response (json_repair fallback)
 8. Wrap in full MoM_Schema envelope with extraction_metadata
 9. Return structured dict

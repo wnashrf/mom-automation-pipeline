@@ -1,0 +1,22 @@
+{
+  "id": "standard_kerajaan",
+  "label": "Templat Biasa (Standard Kerajaan)",
+  "description": "Format minit mesyuarat rasmi mengikut PKPA Bil. 2/1991",
+  "sections": [
+    { "number": "1.0", "title": "PERUTUSAN PENGERUSI",              "required": false },
+    { "number": "2.0", "title": "[TAJUK PERKARA / AGENDA]",         "required": true,  "repeatable": true },
+    { "number": "3.0", "title": "PENGESAHAN MINIT MESYUARAT LEPAS", "required": false },
+    { "number": "4.0", "title": "PERKARA-PERKARA BERBANGKIT",       "required": false },
+    { "number": "5.0", "title": "TINDAKAN SUSULAN",                 "required": true  }
+  ],
+  "header_fields": [
+    "MINIT MESYUARAT",
+    "[TAJUK MESYUARAT]",
+    "Bil. [NOMBOR SIRI]/[TAHUN]",
+    "Tarikh  :  _______________",
+    "Masa    :  _______________",
+    "Tempat  :  _______________",
+    "Pengerusi :  _______________",
+    "Kehadiran :"
+  ]
+}

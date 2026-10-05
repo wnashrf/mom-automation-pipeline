@@ -1,550 +1,876 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 
-export default function EditorView({ meeting, previewMode, setPreviewMode, onBack }) {
-  const [formData, setFormData] = useState({
-    id: meeting?.id || null,
-    meeting_title: meeting?.meeting_title || '',
-    meeting_number: meeting?.meeting_number || '',
-    location: meeting?.location || '',
-    date: meeting?.date || '',
-    start_time: meeting?.start_time || '',
-    end_time: meeting?.end_time || '',
-    chairperson_name: meeting?.chairperson_name || '',
-    chairperson_role: meeting?.chairperson_role || '',
-    participants: meeting?.participants || [],
-    agenda_items: meeting?.agenda_items || [],
-    action_items: meeting?.action_items || [],
-    raw_transcript: meeting?.raw_transcript || '',
+// ─── Section Header ────────────────────────────────────────────────────────────
+function SectionHeader({ title }) {
+  return (
+    <div className="mb-5">
+      <h3 className="text-[11px] font-black uppercase tracking-widest text-[#1b3a5b]">{title}</h3>
+      <div className="mt-1.5 h-0.5 bg-[#1b3a5b] rounded-full" />
+    </div>
+  );
+}
+
+// ─── Form Card ─────────────────────────────────────────────────────────────────
+function FormCard({ children, className = '' }) {
+  return (
+    <div className={`bg-white rounded-2xl shadow-md border border-gray-100 p-7 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Label + Input helpers ─────────────────────────────────────────────────────
+function Label({ children, required }) {
+  return (
+    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+      {children}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+  );
+}
+
+const inputCls =
+  'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3a5b]/30 focus:border-[#1b3a5b] transition-colors bg-white';
+
+const textareaCls =
+  'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3a5b]/30 focus:border-[#1b3a5b] transition-colors bg-white resize-y leading-relaxed';
+
+// ─── initForm — MODULE LEVEL (not inside the component) ───────────────────────
+// Keeping this outside the component is critical: if it were defined inside,
+// every render would create a new function reference.  The useEffect that calls
+// it would then fire on every render, minting a fresh UUID each time and
+// producing duplicate meeting records.
+function initForm(m) {
+  // Stable ID: reuse existing, or mint exactly once here.
+  // The ID written here is the ID used for every auto-save and the final
+  // "Jana Minit" save, so there is never more than one file per session.
+  const stableId =
+    (m?.id && String(m.id).trim()) ||
+    `meet_${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+
+  return {
+    id: stableId,
+    meeting_title:    m?.meeting_title    || m?.title          || '',
+    meeting_number:   m?.meeting_number   || '',
+    location:         m?.location         || m?.venue          || '',
+    date:             m?.date             || m?.meeting_date   || '',
+    start_time:       m?.start_time       || m?.masa_mula      || '',
+    end_time:         m?.end_time         || m?.masa_tamat     || '',
+    // Chairperson — flat keys take priority, then nested object shape
+    chairperson_name: m?.chairperson_name || m?.pengerusi_nama      || m?.chairperson?.name || '',
+    chairperson_role: m?.chairperson_role || m?.pengerusi_jawatan   || m?.chairperson?.role || '',
+    // Secretary
+    secretary_name:   m?.secretary_name   || m?.pencatat_nama       || m?.secretary?.name   || '',
+    secretary_role:   m?.secretary_role   || m?.pencatat_jawatan    || m?.secretary?.role   || '',
+    // Participants
+    // Internal form shape: { name, position (= jawatan displayed), organisation, status }
+    // "position" is the in-form key for jawatan so the input binding is explicit.
+    participants: Array.isArray(m?.participants)
+      ? m.participants.map((p) =>
+          typeof p === 'string'
+            ? { name: p, position: '', organisation: '', status: 'Hadir' }
+            : {
+                name:         p.name         || p.label      || p.nama        || '',
+                // jawatan from JSON → position inside form
+                position:     p.position     || p.jawatan    || p.role        || p.designation || '',
+                organisation: p.organisation || p.department || p.organisasi  || '',
+                status:       p.status       || 'Hadir',
+              }
+        )
+      : [],
+    matters_arising: m?.matters_arising || '',
+    agenda_items: Array.isArray(m?.agenda_items)
+      ? m.agenda_items.map((ag) => ({
+          title:    ag.title    || ag.tajuk     || '',
+          summary:  ag.summary  || ag.ringkasan || '',
+          decision: ag.decision || ag.keputusan || '',
+        }))
+      : [],
+    action_items: Array.isArray(m?.action_items)
+      ? m.action_items.map((act) => ({
+          task:     act.task     || act.description || '',
+          assignee: act.assignee || '',
+          deadline: act.deadline || '',
+          status:   act.status   || 'Belum Mula',
+        }))
+      : [],
+    raw_transcript: m?.raw_transcript || '',
+  };
+}
+
+// ─── hasMeaningfulContent ─────────────────────────────────────────────────────
+// Returns true only when the form has at least one real piece of data.
+// Used to suppress auto-save and flush for blank "Minit Baharu" forms.
+const EMPTY_TITLES = new Set(['', 'draf tanpa tajuk', 'mesyuarat tanpa tajuk']);
+
+function hasMeaningfulContent(data) {
+  if (!data) return false;
+  const title = (data.meeting_title || '').trim().toLowerCase();
+  if (!EMPTY_TITLES.has(title)) return true;
+  if ((data.participants  || []).some((p) => (p.name || '').trim())) return true;
+  if ((data.agenda_items  || []).some((a) => (a.title || '').trim())) return true;
+  if ((data.action_items  || []).length > 0) return true;
+  if ((data.matters_arising || '').trim()) return true;
+  return false;
+}
+// Converts the in-form shape → canonical wire shape.
+// Backend ParticipantModel.model_validator accepts all these keys.
+function serializeParticipants(participants) {
+  return (participants || []).map((p) => ({
+    name:         p.name         || p.nama  || '',
+    jawatan:      p.position     || p.jawatan || p.role || '',  // form uses `position`
+    organisation: p.organisation || p.department || p.organisasi || '',
+    status:       p.status       || 'Hadir',
+    // keep legacy mirrors so existing JSON files round-trip without data loss
+    label:        p.name         || p.nama  || '',
+    department:   p.organisation || p.department || p.organisasi || '',
+  }));
+}
+
+// ─── useAutoSave ──────────────────────────────────────────────────────────────
+// Debounces saves by 3 s.  onIdMinted(id) is called once if the backend
+// returns a different id (shouldn't happen when initForm pre-mints the id,
+// but it's a safe-guard).
+// Returns { saving, lastSaved, flush } — flush() forces an immediate save.
+function useAutoSave(formData, enabled, onIdMinted) {
+  const timerRef    = useRef(null);
+  const formDataRef = useRef(formData);        // always current, no stale closure
+  const [lastSaved, setLastSaved] = useState(null);
+  const [saving,    setSaving]    = useState(false);
+
+  // Keep ref in sync so flush() / unmount handler always see latest formData
+  useEffect(() => { formDataRef.current = formData; }, [formData]);
+
+  const save = useCallback(async (data) => {
+    // Skip entirely if the form is blank — avoids "Draf Tanpa Tajuk" pollution
+    if (!hasMeaningfulContent(data)) return;
+    if (!data.id && !data.meeting_title) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...data,
+        participants:  serializeParticipants(data.participants || []),
+        meeting_title: data.meeting_title || 'Draf Tanpa Tajuk',
+        status: data.status === 'Selesai' ? 'Selesai' : 'Draf',
+      };
+      const res = await fetch('/api/meetings/save', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.id && json.id !== data.id) onIdMinted?.(json.id);
+        setLastSaved(new Date());
+      }
+    } catch (_) {
+      // silent — background save failures are non-blocking
+    } finally {
+      setSaving(false);
+    }
+  }, [onIdMinted]);
+
+  // Debounced auto-save
+  useEffect(() => {
+    if (!enabled) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => save(formData), 3000);
+    return () => clearTimeout(timerRef.current);
+  }, [formData, enabled, save]);
+
+  // Flush on unmount — cancel the pending debounce and save immediately
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      // Fire-and-forget; component is unmounting so we can't await
+      save(formDataRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);   // intentionally empty — runs only on unmount
+
+  // Expose flush so callers can trigger an immediate synchronous-style save
+  const flush = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    return save(formDataRef.current);   // returns the Promise
+  }, [save]);
+
+  return { saving, lastSaved, flush };
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+const EditorView = forwardRef(function EditorView({ meeting, previewMode, setPreviewMode, onBack }, ref) {
+
+  // ── formData ───────────────────────────────────────────────────────────────
+  // initializedRef prevents re-running initForm (and minting a new UUID) when
+  // App re-renders and passes a logically identical meeting object via
+  // `currentMeeting ?? readDraft()`.  We only re-initialize when the meeting's
+  // id actually changes (switching from one record to another).
+  const initializedRef = useRef(null);
+
+  const [formData, setFormData] = useState(() => {
+    const form = initForm(meeting);
+    initializedRef.current = form.id;
+    return form;
   });
-
-  const [newParticipant, setNewParticipant] = useState({ label: '', department: '' });
 
   useEffect(() => {
     if (!meeting) return;
-    setFormData({
-      id: meeting.id || null,
-      meeting_title: meeting.meeting_title || meeting.title || '',
-      meeting_number: meeting.meeting_number || '',
-      location: meeting.location || '',
-      date: meeting.date || meeting.meeting_date || '',
-      start_time: meeting.start_time || '',
-      end_time: meeting.end_time || '',
-      chairperson_name: meeting.chairperson_name || '',
-      chairperson_role: meeting.chairperson_role || '',
-      participants: Array.isArray(meeting.participants)
-        ? meeting.participants.map((p) =>
-            typeof p === 'string'
-              ? { label: p, department: '' }
-              : { label: p.label || p.name || '', department: p.department || '' }
-          )
-        : [],
-      agenda_items: Array.isArray(meeting.agenda_items)
-        ? meeting.agenda_items.map((ag) => ({
-            title: ag.title || ag.tajuk || '',
-            summary: ag.summary || ag.ringkasan || '',
-            decision: ag.decision || ag.keputusan || '',
-          }))
-        : [],
-      action_items: Array.isArray(meeting.action_items)
-        ? meeting.action_items.map((act) => ({
-            task: act.task || act.description || '',
-            assignee: act.assignee || '',
-            deadline: act.deadline || '',
-            status: act.status || 'Belum Mula',
-          }))
-        : [],
-      raw_transcript: meeting.raw_transcript || '',
-    });
+    const incomingId = (meeting.id && String(meeting.id).trim()) || null;
+    // Only re-init if a different meeting is loaded (id changed or first load
+    // with a real server id replacing the locally-minted placeholder)
+    if (incomingId && incomingId !== initializedRef.current) {
+      const form = initForm(meeting);
+      initializedRef.current = form.id;
+      setFormData(form);
+    }
   }, [meeting]);
 
-  // Update Field Helper
-  const updateField = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  // ── id-minted callback ─────────────────────────────────────────────────────
+  const handleIdMinted = useCallback((newId) => {
+    setFormData((prev) => {
+      if (prev.id === newId) return prev;
+      const updated = { ...prev, id: newId };
+      initializedRef.current = newId;
+      try { sessionStorage.setItem('active_meeting_draft', JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+  }, []);
 
-  // Participant Handlers
-  const addParticipant = () => {
-    if (!newParticipant.label.trim()) return;
+  const { saving, lastSaved, flush } = useAutoSave(formData, true, handleIdMinted);
+
+  // Expose flush() to parent (App.jsx) so it can force a save before unmounting
+  useImperativeHandle(ref, () => ({ flush }), [flush]);
+
+  // ── Keep sessionStorage in sync on every formData change ──────────────────
+  useEffect(() => {
+    if (!formData.id) return;
+    try { sessionStorage.setItem('active_meeting_draft', JSON.stringify(formData)); } catch (_) {}
+  }, [formData]);
+
+  // ── Field helpers ──────────────────────────────────────────────────────────
+  const updateField = (field, value) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  // ── Participants ───────────────────────────────────────────────────────────
+  const addParticipant = () =>
     setFormData((prev) => ({
       ...prev,
-      participants: [...prev.participants, { ...newParticipant }],
+      participants: [...prev.participants, { name: '', position: '', organisation: '', status: 'Hadir' }],
     }));
-    setNewParticipant({ label: '', department: '' });
-  };
 
-  const removeParticipant = (idx) => {
+  const updateParticipant = (idx, field, value) =>
+    setFormData((prev) => {
+      const updated = [...prev.participants];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return { ...prev, participants: updated };
+    });
+
+  const removeParticipant = (idx) =>
     setFormData((prev) => ({
       ...prev,
       participants: prev.participants.filter((_, i) => i !== idx),
     }));
-  };
 
-  // Agenda Handlers
-  const addAgendaItem = () => {
+  // ── Agenda ─────────────────────────────────────────────────────────────────
+  const addAgendaItem = () =>
     setFormData((prev) => ({
       ...prev,
       agenda_items: [...prev.agenda_items, { title: '', summary: '', decision: '' }],
     }));
-  };
 
-  const updateAgendaItem = (index, field, value) => {
+  const updateAgendaItem = (idx, field, value) =>
     setFormData((prev) => {
       const updated = [...prev.agenda_items];
-      updated[index][field] = value;
+      updated[idx] = { ...updated[idx], [field]: value };
       return { ...prev, agenda_items: updated };
     });
-  };
 
-  const removeAgendaItem = (index) => {
+  const removeAgendaItem = (idx) =>
     setFormData((prev) => ({
       ...prev,
-      agenda_items: prev.agenda_items.filter((_, i) => i !== index),
+      agenda_items: prev.agenda_items.filter((_, i) => i !== idx),
     }));
-  };
 
-  // Action Item Handlers
-  const addActionItem = () => {
+  // ── Action Items ───────────────────────────────────────────────────────────
+  const addActionItem = () =>
     setFormData((prev) => ({
       ...prev,
       action_items: [...prev.action_items, { task: '', assignee: '', deadline: '', status: 'Belum Mula' }],
     }));
-  };
 
-  const updateActionItem = (index, field, value) => {
+  const updateActionItem = (idx, field, value) =>
     setFormData((prev) => {
       const updated = [...prev.action_items];
-      updated[index][field] = value;
+      updated[idx] = { ...updated[idx], [field]: value };
       return { ...prev, action_items: updated };
     });
-  };
 
-  const removeActionItem = (index) => {
+  const removeActionItem = (idx) =>
     setFormData((prev) => ({
       ...prev,
-      action_items: prev.action_items.filter((_, i) => i !== index),
+      action_items: prev.action_items.filter((_, i) => i !== idx),
     }));
-  };
 
-  // Save to Backend
+  // ── Jana Minit Mesyuarat (final save) ─────────────────────────────────────
+  // Always overwrites the SAME file (formData.id minted at initForm time).
+  // Sets status=Selesai, then clears the draft from sessionStorage.
   const handleSave = async () => {
     try {
       const payload = {
         ...formData,
+        participants:  serializeParticipants(formData.participants || []),
         meeting_title: formData.meeting_title || 'Mesyuarat Tanpa Tajuk',
-        status: 'Selesai',
+        status:        'Selesai',
       };
 
       const res = await fetch('/api/meetings/save', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
       });
 
       if (!res.ok) throw new Error('Gagal menyimpan rekod ke pelayan.');
-      alert('Minit mesyuarat berjaya disimpan!');
+
+      // Draft fulfilled — clear it so the nav card resets to "Minit Baharu"
+      try { sessionStorage.removeItem('active_meeting_draft'); } catch (_) {}
+
+      alert('Minit mesyuarat berjaya dijana dan disimpan!');
       onBack();
     } catch (err) {
       alert('Ralat menyimpan minit: ' + err.message);
     }
   };
 
+  // ── Date formatter for preview ─────────────────────────────────────────────
+  const fmtDate = (d) => {
+    if (!d) return '-';
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' });
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ══════════════════════════════════════════════════════════════════════════
   return (
-    <section className="space-y-6">
-      {/* Top Controls */}
-      <div className="flex justify-between items-center">
-        <button
-          onClick={onBack}
-          className="text-xs bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded shadow transition"
-        >
-          ← Kembali ke Dashboard
-        </button>
-        <div className="space-x-2">
-          <button
-            onClick={() => setPreviewMode(!previewMode)}
-            className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded shadow transition"
+    <section className="pb-28">
+      {/* ── Top toggle bar ──────────────────────────────────────────────── */}
+      <div className="flex justify-end gap-3 mb-6">
+        {/* Download DOCX — only shown when the record has a saved id */}
+        {formData.id && (
+          <a
+            href={`/api/meetings/${formData.id}/export`}
+            download
+            className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-gray-50 text-[#1b3a5b] border-2 border-[#1b3a5b] text-sm font-semibold rounded-xl shadow-sm transition-colors"
           >
-            {previewMode ? 'Kembali ke Borang' : 'Pratonton Dokumen Rasmi'}
-          </button>
-          {!previewMode && (
-            <button
-              onClick={handleSave}
-              className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow transition"
-            >
-              Simpan Draf ke Sejarah
-            </button>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Muat Turun DOCX
+          </a>
+        )}
+        <button
+          onClick={() => setPreviewMode(!previewMode)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#1b3a5b] hover:bg-[#14304e] text-white text-sm font-semibold rounded-xl shadow transition-colors"
+        >
+          {previewMode ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Kembali ke Borang
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              Pratonton Dokumen Rasmi
+            </>
           )}
-        </div>
+        </button>
       </div>
 
-      {/* VIEW A: EDITABLE FORM */}
-      {!previewMode ? (
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* VIEW A — EDITABLE FORM                                             */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {!previewMode && (
         <div className="space-y-6">
-          {/* Metadata Card */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 border-b pb-2">Maklumat Mesyuarat</h3>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Tajuk Mesyuarat *</label>
-              <input
-                type="text"
-                value={formData.meeting_title}
+
+          {/* Card 1: MAKLUMAT MESYUARAT */}
+          <FormCard>
+            <SectionHeader title="Maklumat Mesyuarat" />
+            <div className="mb-4">
+              <Label required>Tajuk Mesyuarat</Label>
+              <input type="text" value={formData.meeting_title}
                 onChange={(e) => updateField('meeting_title', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
-              />
+                placeholder="Contoh: Mesyuarat Jawatankuasa Teknikal Bil. 3/2026"
+                className={inputCls} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Bilangan Mesyuarat</label>
-                <input
-                  type="text"
-                  value={formData.meeting_number}
+                <Label>Bilangan Mesyuarat</Label>
+                <input type="text" value={formData.meeting_number}
                   onChange={(e) => updateField('meeting_number', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
+                  placeholder="Contoh: 3/2026" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Tempat</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => updateField('location', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Tarikh</label>
-                <input
-                  type="date"
-                  value={formData.date}
+                <Label required>Tarikh</Label>
+                <input type="date" value={formData.date}
                   onChange={(e) => updateField('date', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Masa Mula</label>
-                <input
-                  type="time"
-                  value={formData.start_time}
-                  onChange={(e) => updateField('start_time', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Masa Tamat</label>
-                <input
-                  type="time"
-                  value={formData.end_time}
-                  onChange={(e) => updateField('end_time', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
+                  className={inputCls} />
               </div>
             </div>
-          </div>
-
-          {/* Chairperson Card */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 border-b pb-2">Pengerusi & Pencatat</h3>
+            <div className="mb-4">
+              <Label>Tempat</Label>
+              <input type="text" value={formData.location}
+                onChange={(e) => updateField('location', e.target.value)}
+                placeholder="Contoh: Bilik Mesyuarat Utama, Tingkat 3"
+                className={inputCls} />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Pengerusi</label>
-                <input
-                  type="text"
-                  value={formData.chairperson_name}
+                <Label>Masa Mula</Label>
+                <input type="time" value={formData.start_time}
+                  onChange={(e) => updateField('start_time', e.target.value)}
+                  className={inputCls} />
+              </div>
+              <div>
+                <Label>Masa Tamat</Label>
+                <input type="time" value={formData.end_time}
+                  onChange={(e) => updateField('end_time', e.target.value)}
+                  className={inputCls} />
+              </div>
+            </div>
+          </FormCard>
+
+          {/* Card 2: PENGERUSI & PENCATAT */}
+          <FormCard>
+            <SectionHeader title="Pengerusi & Pencatat" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <Label>Nama Pengerusi</Label>
+                <input type="text" value={formData.chairperson_name}
                   onChange={(e) => updateField('chairperson_name', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
+                  placeholder="Nama penuh pengerusi" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Jawatan Pengerusi</label>
-                <input
-                  type="text"
-                  value={formData.chairperson_role}
+                <Label>Jawatan Pengerusi</Label>
+                <input type="text" value={formData.chairperson_role}
                   onChange={(e) => updateField('chairperson_role', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded text-xs"
-                />
+                  placeholder="Contoh: Ketua Setiausaha" className={inputCls} />
               </div>
             </div>
-          </div>
-
-          {/* Participants Badges */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-3">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700">Kehadiran Mesyuarat</h3>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Nama Pegawai..."
-                value={newParticipant.label}
-                onChange={(e) => setNewParticipant((prev) => ({ ...prev, label: e.target.value }))}
-                className="p-1.5 border border-gray-300 rounded text-xs flex-1"
-              />
-              <input
-                type="text"
-                placeholder="Bahagian / Jabatan..."
-                value={newParticipant.department}
-                onChange={(e) => setNewParticipant((prev) => ({ ...prev, department: e.target.value }))}
-                className="p-1.5 border border-gray-300 rounded text-xs w-48"
-              />
-              <button
-                type="button"
-                onClick={addParticipant}
-                className="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded font-semibold text-gray-700"
-              >
-                + Tambah
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {formData.participants.map((p, idx) => (
-                <div key={idx} className="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-900 rounded px-3 py-1 text-xs gap-2">
-                  <span className="font-semibold">{p.label || 'Nama Pegawai'}</span>
-                  {p.department && <span className="text-blue-500 text-[10px]">({p.department})</span>}
-                  <button type="button" onClick={() => removeParticipant(idx)} className="text-blue-400 hover:text-red-600 font-bold ml-1">
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Agenda & Decisions */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
-            <div className="flex justify-between items-center border-b pb-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700">Perkara-perkara Perbincangan & Keputusan</h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">Format perbincangan dan ketetapan selaras dengan PKPA Bil. 2/1991.</p>
+                <Label>Nama Pencatat</Label>
+                <input type="text" value={formData.secretary_name}
+                  onChange={(e) => updateField('secretary_name', e.target.value)}
+                  placeholder="Nama penuh pencatat minit" className={inputCls} />
               </div>
-              <button
-                type="button"
-                onClick={addAgendaItem}
-                className="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded font-semibold"
-              >
-                + Tambah Perkara
-              </button>
+              <div>
+                <Label>Jawatan Pencatat</Label>
+                <input type="text" value={formData.secretary_role}
+                  onChange={(e) => updateField('secretary_role', e.target.value)}
+                  placeholder="Contoh: Penolong Setiausaha" className={inputCls} />
+              </div>
             </div>
-            <div className="space-y-4">
+          </FormCard>
+
+          {/* Card 3: SENARAI KEHADIRAN */}
+          <FormCard>
+            <SectionHeader title="Senarai Kehadiran" />
+            {formData.participants.length > 0 && (
+              <div className="mb-4 space-y-3">
+                <div className="hidden md:grid md:grid-cols-[1fr_1fr_1fr_180px_40px] gap-2 px-1">
+                  {['Nama', 'Jawatan', 'Organisasi / Bahagian', 'Status Kehadiran', ''].map((h) => (
+                    <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{h}</span>
+                  ))}
+                </div>
+                {formData.participants.map((p, idx) => (
+                  <div key={idx}
+                    className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_180px_40px] gap-2 items-center bg-gray-50 border border-gray-200 rounded-xl p-3">
+                    <input type="text" value={p.name}
+                      onChange={(e) => updateParticipant(idx, 'name', e.target.value)}
+                      placeholder="Nama" className={inputCls} />
+                    <input type="text" value={p.position}
+                      onChange={(e) => updateParticipant(idx, 'position', e.target.value)}
+                      placeholder="Jawatan" className={inputCls} />
+                    <input type="text" value={p.organisation}
+                      onChange={(e) => updateParticipant(idx, 'organisation', e.target.value)}
+                      placeholder="Organisasi / Bahagian" className={inputCls} />
+                    <select value={p.status}
+                      onChange={(e) => updateParticipant(idx, 'status', e.target.value)}
+                      className={inputCls}>
+                      <option value="Hadir">Hadir</option>
+                      <option value="Tidak Hadir - Bersebab">Tidak Hadir - Bersebab</option>
+                      <option value="Turut Hadir">Turut Hadir</option>
+                    </select>
+                    <div className="flex justify-end md:justify-center">
+                      <button type="button" onClick={() => removeParticipant(idx)} title="Buang ahli"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-base transition-colors">
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {formData.participants.length === 0 && (
+              <p className="text-sm text-gray-400 italic mb-4">Tiada ahli ditambah lagi.</p>
+            )}
+            <button type="button" onClick={addParticipant}
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 hover:border-[#1b3a5b] text-gray-500 hover:text-[#1b3a5b] rounded-xl text-sm font-semibold transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Tambah Ahli
+            </button>
+          </FormCard>
+
+          {/* Card 4: PERKARA BERBANGKIT */}
+          <FormCard>
+            <SectionHeader title="Perkara Berbangkit" />
+            <p className="text-xs text-gray-500 mb-3">Tindakan susulan dari mesyuarat lepas yang perlu dimaklumkan.</p>
+            <textarea rows={4} value={formData.matters_arising}
+              onChange={(e) => updateField('matters_arising', e.target.value)}
+              placeholder="Contoh: Tindakan dari mesyuarat lepas (Bil. 2/2026) — laporan dikemukakan oleh Unit A..."
+              className={textareaCls} />
+          </FormCard>
+
+          {/* Card 5: PERKARA DIBINCANGKAN (AGENDA) */}
+          <FormCard>
+            <SectionHeader title="Perkara Dibincangkan (Agenda)" />
+            <div className="space-y-5 mb-5">
               {formData.agenda_items.map((ag, idx) => (
-                <div key={idx} className="p-4 rounded border border-gray-200 bg-gray-50/50 space-y-2 relative">
-                  <button
-                    type="button"
-                    onClick={() => removeAgendaItem(idx)}
-                    className="absolute top-2 right-3 text-red-500 hover:text-red-700 text-xs font-semibold"
-                  >
-                    Padam
-                  </button>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-gray-600 mb-1">Tajuk Perkara</label>
-                    <input
-                      type="text"
-                      value={ag.title}
-                      onChange={(e) => updateAgendaItem(idx, 'title', e.target.value)}
-                      className="w-full bg-white p-2 border border-gray-300 rounded text-xs font-semibold"
-                    />
+                <div key={idx} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 bg-[#1b3a5b]/5 border-b border-gray-200">
+                    <span className="text-xs font-black uppercase tracking-widest text-[#1b3a5b]">Perkara {idx + 1}</span>
+                    <button type="button" onClick={() => removeAgendaItem(idx)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Buang
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-gray-600 mb-1">Ringkasan Perbincangan</label>
-                    <textarea
-                      rows={3}
-                      value={ag.summary}
-                      onChange={(e) => updateAgendaItem(idx, 'summary', e.target.value)}
-                      className="w-full bg-white p-2 border border-gray-300 rounded text-xs leading-relaxed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-emerald-700 mb-1">Keputusan / Ketetapan Mesyuarat</label>
-                    <textarea
-                      rows={2}
-                      value={ag.decision}
-                      onChange={(e) => updateAgendaItem(idx, 'decision', e.target.value)}
-                      className="w-full bg-white p-2 border border-emerald-300 rounded text-xs text-gray-800"
-                    />
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <Label>Tajuk Perkara</Label>
+                      <input type="text" value={ag.title}
+                        onChange={(e) => updateAgendaItem(idx, 'title', e.target.value)}
+                        placeholder="Tajuk agenda / perkara" className={inputCls} />
+                    </div>
+                    <div>
+                      <Label>Ringkasan Perbincangan</Label>
+                      <textarea rows={4} value={ag.summary}
+                        onChange={(e) => updateAgendaItem(idx, 'summary', e.target.value)}
+                        placeholder="Huraikan perbincangan yang berlaku..." className={textareaCls} />
+                    </div>
+                    <div>
+                      <Label>Keputusan / Ketetapan</Label>
+                      <textarea rows={3} value={ag.decision}
+                        onChange={(e) => updateAgendaItem(idx, 'decision', e.target.value)}
+                        placeholder="Nyatakan keputusan atau ketetapan mesyuarat..."
+                        className={`${textareaCls} border-emerald-300 focus:border-emerald-500 focus:ring-emerald-200`} />
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+            {formData.agenda_items.length === 0 && (
+              <p className="text-sm text-gray-400 italic mb-4">Tiada perkara agenda ditambah lagi.</p>
+            )}
+            <button type="button" onClick={addAgendaItem}
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 hover:border-[#1b3a5b] text-gray-500 hover:text-[#1b3a5b] rounded-xl text-sm font-semibold transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Tambah Perkara
+            </button>
+          </FormCard>
 
-          {/* Action Items Table */}
-          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex justify-between items-center mb-4 border-b pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700">Senarai Tindakan Susulan</h3>
-              <button
-                type="button"
-                onClick={addActionItem}
-                className="text-xs bg-gray-100 hover:bg-gray-200 border px-3 py-1 rounded font-semibold"
-              >
-                + Tambah Tindakan
-              </button>
-            </div>
-            <table className="w-full text-left text-xs">
-              <thead className="bg-gray-50 uppercase text-gray-500 font-semibold border-b">
-                <tr>
-                  <th className="p-2 w-1/2">Tindakan / Tugas</th>
-                  <th className="p-2">Pegawai</th>
-                  <th className="p-2">Tarikh Akhir</th>
-                  <th className="p-2 text-center">Tindakan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {formData.action_items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td className="p-2">
-                      <input
-                        type="text"
-                        value={item.task}
+          {/* Card 6: TINDAKAN SUSULAN */}
+          <FormCard>
+            <SectionHeader title="Tindakan Susulan" />
+            <div className="space-y-4 mb-5">
+              {formData.action_items.map((item, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 bg-[#1b3a5b]/5 border-b border-gray-200">
+                    <span className="text-xs font-black uppercase tracking-widest text-[#1b3a5b]">Tindakan {idx + 1}</span>
+                    <button type="button" onClick={() => removeActionItem(idx)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Buang
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <Label>Tindakan</Label>
+                      <input type="text" value={item.task}
                         onChange={(e) => updateActionItem(idx, 'task', e.target.value)}
-                        placeholder="Deskripsi tugasan..."
-                        className="w-full border rounded p-1.5 text-xs border-gray-300 focus:ring-1 focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <input
-                        type="text"
-                        value={item.assignee}
-                        onChange={(e) => updateActionItem(idx, 'assignee', e.target.value)}
-                        placeholder="Tugaskan pegawai..."
-                        className={`w-full border rounded p-1.5 text-xs focus:ring-1 focus:ring-blue-500 ${
-                          !item.assignee ? 'border-amber-400 bg-amber-50/40' : 'border-gray-300'
-                        }`}
-                      />
-                    </td>
-                    <td className="p-2">
-                      <input
-                        type="text"
-                        value={item.deadline}
-                        onChange={(e) => updateActionItem(idx, 'deadline', e.target.value)}
-                        placeholder="YYYY-MM-DD..."
-                        className={`w-full border rounded p-1.5 text-xs focus:ring-1 focus:ring-blue-500 ${
-                          !item.deadline ? 'border-amber-400 bg-amber-50/40' : 'border-gray-300'
-                        }`}
-                      />
-                    </td>
-                    <td className="p-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeActionItem(idx)}
-                        className="text-red-600 text-xs hover:underline font-semibold"
-                      >
-                        Padam
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        placeholder="Huraikan tindakan yang perlu diambil..." className={inputCls} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Tanggungjawab (Nama / Jawatan)</Label>
+                        <input type="text" value={item.assignee}
+                          onChange={(e) => updateActionItem(idx, 'assignee', e.target.value)}
+                          placeholder="Nama atau jawatan pegawai" className={inputCls} />
+                      </div>
+                      <div>
+                        <Label>Tarikh Akhir</Label>
+                        <input type="date" value={item.deadline}
+                          onChange={(e) => updateActionItem(idx, 'deadline', e.target.value)}
+                          className={inputCls} />
+                      </div>
+                      <div>
+                        <Label>Status</Label>
+                        <select value={item.status}
+                          onChange={(e) => updateActionItem(idx, 'status', e.target.value)}
+                          className={inputCls}>
+                          <option value="Belum Mula">Belum Mula</option>
+                          <option value="Sedang Berjalan">Sedang Berjalan</option>
+                          <option value="Selesai">Selesai</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {formData.action_items.length === 0 && (
+              <p className="text-sm text-gray-400 italic mb-4">Tiada tindakan susulan ditambah lagi.</p>
+            )}
+            <button type="button" onClick={addActionItem}
+              className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 hover:border-[#1b3a5b] text-gray-500 hover:text-[#1b3a5b] rounded-xl text-sm font-semibold transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Tambah Tindakan
+            </button>
+          </FormCard>
         </div>
-      ) : (
-        /* VIEW B: OFFICIAL PKPA PRINTABLE PREVIEW */
-        <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm font-serif">
-          <div className="text-center border-b pb-4 mb-6">
-            <h2 className="text-xl font-bold uppercase tracking-wide text-gray-900">
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* VIEW B — OFFICIAL PKPA PRINTABLE PREVIEW                           */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {previewMode && (
+        <div className="bg-white p-10 rounded-2xl border border-gray-200 shadow-sm font-serif text-gray-900">
+          <div className="text-center border-b-2 border-[#1b3a5b] pb-6 mb-6">
+            <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Minit Mesyuarat Rasmi</p>
+            <h2 className="text-xl font-bold uppercase tracking-wide text-[#1b3a5b]">
               {formData.meeting_title || 'MINIT MESYUARAT'}
             </h2>
-            <p className="text-xs font-semibold text-gray-600 mt-1">
-              BILANGAN: {formData.meeting_number || '-'}
-            </p>
+            {formData.meeting_number && (
+              <p className="text-sm font-semibold text-gray-600 mt-1">Bilangan {formData.meeting_number}</p>
+            )}
           </div>
 
-          <table className="w-full text-xs mb-6 border-collapse font-sans">
-            <tbody>
-              <tr>
-                <td className="font-bold py-1 w-24">Tarikh</td>
-                <td>: {formData.date || '-'}</td>
-              </tr>
-              <tr>
-                <td className="font-bold py-1">Tempat</td>
-                <td>: {formData.location || '-'}</td>
-              </tr>
-              <tr>
-                <td className="font-bold py-1">Pengerusi</td>
-                <td>
-                  : {formData.chairperson_name || '-'}
-                  {formData.chairperson_role ? ` (${formData.chairperson_role})` : ''}
-                </td>
-              </tr>
+          <table className="w-full text-xs mb-8 font-sans">
+            <tbody className="divide-y divide-gray-100">
+              {[
+                ['Tarikh',    fmtDate(formData.date)],
+                ['Tempat',    formData.location || '-'],
+                ['Masa',      formData.start_time
+                                ? `${formData.start_time}${formData.end_time ? ` – ${formData.end_time}` : ''}`
+                                : '-'],
+                ['Pengerusi', [formData.chairperson_name, formData.chairperson_role].filter(Boolean).join(', ') || '-'],
+                ['Pencatat',  [formData.secretary_name,   formData.secretary_role  ].filter(Boolean).join(', ') || '-'],
+              ].map(([k, v]) => (
+                <tr key={k}>
+                  <td className="py-1.5 font-bold text-gray-700 w-32">{k}</td>
+                  <td className="py-1.5 text-gray-600">: {v}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
-          <div className="space-y-6 text-xs text-gray-800 leading-relaxed font-sans">
+          <div className="space-y-8 text-xs leading-relaxed font-sans">
+            {/* 1. Kehadiran */}
             <div>
-              <h4 className="font-bold text-xs uppercase border-b pb-1 text-[#1b3a5b] mb-2">1.0 KEHADIRAN</h4>
-              <ol className="list-decimal pl-5 space-y-1">
-                {formData.participants.length ? (
-                  formData.participants.map((p, idx) => (
-                    <li key={idx}>
-                      {p.label} {p.department && `(${p.department})`}
-                    </li>
-                  ))
-                ) : (
-                  <li className="italic text-gray-500">Tiada rekod kehadiran.</li>
-                )}
-              </ol>
+              <h4 className="font-black text-[11px] uppercase tracking-widest text-[#1b3a5b] border-b border-[#1b3a5b] pb-1 mb-3">
+                1.0 Kehadiran
+              </h4>
+              {formData.participants.length ? (
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-600 uppercase text-[10px]">
+                      <th className="p-2 text-center w-8">Bil.</th>
+                      <th className="p-2 text-left">Nama</th>
+                      <th className="p-2 text-left">Jawatan</th>
+                      <th className="p-2 text-left">Organisasi / Bahagian</th>
+                      <th className="p-2 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {formData.participants.map((p, i) => (
+                      <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="p-2 text-center text-gray-500">{i + 1}.</td>
+                        <td className="p-2 font-semibold">{p.name || '-'}</td>
+                        {/* position is the in-form key for jawatan */}
+                        <td className="p-2">{p.position || '-'}</td>
+                        <td className="p-2">{p.organisation || '-'}</td>
+                        <td className="p-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            p.status === 'Hadir'       ? 'bg-emerald-100 text-emerald-700' :
+                            p.status === 'Turut Hadir' ? 'bg-blue-100 text-blue-700' :
+                                                         'bg-orange-100 text-orange-700'
+                          }`}>{p.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="italic text-gray-400">Tiada rekod kehadiran.</p>
+              )}
             </div>
 
+            {/* 2. Perkara Berbangkit */}
+            {formData.matters_arising && (
+              <div>
+                <h4 className="font-black text-[11px] uppercase tracking-widest text-[#1b3a5b] border-b border-[#1b3a5b] pb-1 mb-3">
+                  2.0 Perkara Berbangkit
+                </h4>
+                <p className="text-gray-700 whitespace-pre-line leading-relaxed">{formData.matters_arising}</p>
+              </div>
+            )}
+
+            {/* 3. Perbincangan */}
             <div>
-              <h4 className="font-bold text-xs uppercase border-b pb-1 text-[#1b3a5b] mb-2">
-                2.0 PERKARA-PERKARA BERBANGKIT & PERBINCANGAN
+              <h4 className="font-black text-[11px] uppercase tracking-widest text-[#1b3a5b] border-b border-[#1b3a5b] pb-1 mb-3">
+                {formData.matters_arising ? '3.0' : '2.0'} Perkara-perkara Dibincangkan
               </h4>
               {formData.agenda_items.length ? (
                 formData.agenda_items.map((ag, idx) => (
-                  <div key={idx} className="mb-4">
-                    <p className="font-bold text-gray-900">
-                      {idx + 1}.0 {ag.title}
+                  <div key={idx} className="mb-6">
+                    <p className="font-bold text-gray-900 mb-2">
+                      {(formData.matters_arising ? 3 : 2)}.{idx + 1} {ag.title}
                     </p>
-                    <p className="text-gray-700 pl-4 mt-1 leading-relaxed whitespace-pre-line">{ag.summary}</p>
+                    <p className="text-gray-700 pl-4 whitespace-pre-line leading-relaxed">{ag.summary}</p>
                     {ag.decision && (
-                      <div className="mt-2 pl-4 text-emerald-950 bg-emerald-50/70 p-2.5 rounded border border-emerald-200">
-                        <strong>Tindakan / Ketetapan:</strong>
-                        <div className="whitespace-pre-line mt-1">{ag.decision}</div>
+                      <div className="mt-3 ml-4 p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+                        <p className="font-bold text-emerald-800 mb-1">Keputusan / Ketetapan:</p>
+                        <p className="text-gray-700 whitespace-pre-line">{ag.decision}</p>
                       </div>
                     )}
                   </div>
                 ))
               ) : (
-                <p className="italic text-gray-500">Tiada perkara perbincangan direkodkan.</p>
+                <p className="italic text-gray-400">Tiada perkara perbincangan direkodkan.</p>
               )}
             </div>
 
+            {/* 4. Tindakan Susulan */}
             <div>
-              <h4 className="font-bold text-xs uppercase border-b pb-1 text-[#1b3a5b] mb-2">
-                3.0 MATRIKS TINDAKAN SUSULAN
+              <h4 className="font-black text-[11px] uppercase tracking-widest text-[#1b3a5b] border-b border-[#1b3a5b] pb-1 mb-3">
+                {formData.matters_arising ? '4.0' : '3.0'} Matriks Tindakan Susulan
               </h4>
-              <table className="w-full text-left text-xs border border-gray-200 mt-2">
-                <thead className="bg-gray-100 uppercase text-gray-600 font-bold border-b">
-                  <tr>
-                    <th className="p-2 text-center w-10">Bil</th>
-                    <th className="p-2">Tugasan</th>
-                    <th className="p-2 w-44">Tindakan Oleh</th>
-                    <th className="p-2 w-28 text-center">Tarikh Akhir</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {formData.action_items.length ? (
-                    formData.action_items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="p-2 text-center align-top">{idx + 1}.</td>
-                        <td className="p-2 align-top font-medium">{item.task}</td>
-                        <td className="p-2 align-top">{item.assignee || 'Belum Ditetapkan'}</td>
-                        <td className="p-2 align-top text-center">{item.deadline || '-'}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="p-3 text-center text-gray-500 italic">
-                        Tiada tindakan susulan direkodkan.
-                      </td>
+              {formData.action_items.length ? (
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-[#1b3a5b] text-white text-[10px] uppercase tracking-wide">
+                      <th className="p-2.5 text-center w-8">Bil.</th>
+                      <th className="p-2.5 text-left">Tindakan</th>
+                      <th className="p-2.5 text-left w-44">Tanggungjawab</th>
+                      <th className="p-2.5 text-center w-28">Tarikh Akhir</th>
+                      <th className="p-2.5 text-center w-28">Status</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {formData.action_items.map((item, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="p-2.5 text-center text-gray-500">{idx + 1}.</td>
+                        <td className="p-2.5 font-medium">{item.task}</td>
+                        <td className="p-2.5">{item.assignee || <span className="italic text-gray-400">Belum Ditetapkan</span>}</td>
+                        <td className="p-2.5 text-center">{item.deadline ? fmtDate(item.deadline) : '-'}</td>
+                        <td className="p-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            item.status === 'Selesai'         ? 'bg-emerald-100 text-emerald-700' :
+                            item.status === 'Sedang Berjalan' ? 'bg-blue-100 text-blue-700' :
+                                                                'bg-gray-100 text-gray-600'
+                          }`}>{item.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="italic text-gray-400">Tiada tindakan susulan direkodkan.</p>
+              )}
             </div>
+          </div>
+
+          {/* Signature block */}
+          <div className="mt-12 grid grid-cols-2 gap-16 text-xs font-sans">
+            {[
+              { label: 'Pengerusi',     name: formData.chairperson_name, role: formData.chairperson_role },
+              { label: 'Pencatat Minit', name: formData.secretary_name,   role: formData.secretary_role   },
+            ].map((sig) => (
+              <div key={sig.label}>
+                <div className="border-b border-gray-400 mt-10 mb-2" />
+                <p className="font-bold">{sig.name || '( )'}</p>
+                {sig.role && <p className="text-gray-500">{sig.role}</p>}
+                <p className="text-gray-400 mt-1">{sig.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* STICKY BOTTOM ACTION BAR — shown in both form and preview modes    */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-2xl">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            {/* Left slot — auto-save indicator in form mode, empty spacer in preview */}
+            {!previewMode ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              {saving ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-amber-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                  </svg>
+                  <span className="text-amber-600 font-medium">Menyimpan draf...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>
+                    Auto-simpan aktif —{' '}
+                    <span className="font-medium text-gray-700">draf disimpan secara automatik</span>
+                    {lastSaved && (
+                      <span className="text-gray-400 ml-1">
+                        (terakhir: {lastSaved.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })})
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
+            </div>
+            ) : <div />}
+            <button type="button" onClick={handleSave}
+              className="flex items-center gap-2.5 px-8 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm rounded-xl shadow-lg hover:shadow-emerald-200 transition-all">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Jana Minit Mesyuarat
+            </button>
+          </div>
+        </div>
     </section>
   );
-}
+});
+
+export default EditorView;

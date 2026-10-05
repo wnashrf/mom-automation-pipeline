@@ -61,7 +61,7 @@ The platform consists of two tiers:
 #### Acceptance Criteria
 
 1. WHEN the user triggers extraction from `IngestView`, THE Frontend SHALL issue a `POST /api/extract` request with `{ "transcript": "<text>" }` as the JSON body.
-2. THE Extraction_Agent SHALL invoke the Anthropic API using model `claude-3-5-sonnet-latest` (or current alias), authenticated via `ANTHROPIC_API_KEY` from the `.env` file. No AWS credentials, boto3, or Bedrock SDK SHALL be used.
+2. THE Extraction_Agent SHALL invoke the Anthropic API using model `claude-sonnet-5` (or current alias), authenticated via `ANTHROPIC_API_KEY` from the `.env` file. No AWS credentials, boto3, or Bedrock SDK SHALL be used.
 3. THE Extraction_Agent SHALL load `.kiro/steering/mom-rules.md` at extraction start and inject the rules content into the Claude system prompt. IF the steering file is absent, THE Agent SHALL apply built-in default rules and log a warning.
 4. THE Extraction_Agent SHALL return a JSON object conforming to MoM_Schema containing: `participants`, `agenda_items`, `decisions`, `action_items`, and `extraction_metadata` (including `extraction_status`, `token_usage`, `language_detected`, `rules_version`).
 5. WHEN a transcript contains fewer than 50 usable words (after stripping punctuation and whitespace), THE Extraction_Agent SHALL return a partial result with `extraction_status: "partial"`, `near_empty: true`, and all extraction arrays set to `[]`.
