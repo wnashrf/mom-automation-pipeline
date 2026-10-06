@@ -1,14 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { CheckCircle2, ChevronDown, Download, Info, Sparkles, Upload } from 'lucide-react';
+import Button from './ui/Button';
+import Card from './ui/Card';
+import SectionHeader from './ui/SectionHeader';
+import FormField from './ui/FormField';
+import ProgressBar from './ui/ProgressBar';
+import { useToast } from './ui/toastContext';
+import { clampPercent, formatAudioProgress } from '../lib/progress';
+import { buildErrorMessage } from '../lib/errors';
+import { cx } from '../lib/cx';
+import { T } from '../lib/terminology';
 
 const SESSION_KEY = 'mom_transcript_id';
+const S = T.ingest;
 
 // ─── Template definitions ────────────────────────────────────────────────────
+// Tag classes are complete static strings (Req 1.6); neutral/info tone, not a record status.
 const TEMPLATES = {
   standard: {
     id: 'standard',
-    label: 'Templat Biasa (Standard Kerajaan)',
-    badge: 'Templat biasa akan digunakan',
-    badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    label: S.templateStandard,
+    tag: S.templateStandardTag,
+    tagClass: 'border-neutral-border bg-neutral-bg text-neutral-fg',
     preview: [
       { level: 'title',   text: 'MINIT MESYUARAT' },
       { level: 'title',   text: '[TAJUK MESYUARAT]' },
@@ -31,28 +44,55 @@ const TEMPLATES = {
   },
   custom: {
     id: 'custom',
-    label: 'Templat Khusus',
-    badge: 'Templat khusus akan digunakan',
-    badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    label: S.templateCustom,
+    tag: S.templateCustomTag,
+    tagClass: 'border-info-border bg-info-bg text-info-fg',
     preview: [],
   },
+};
+
+const WHISPER_MODELS = [
+  { value: 'tiny', label: S.models.tiny },
+  { value: 'base', label: S.models.base },
+  { value: 'small', label: S.models.small },
+  { value: 'large-v3-turbo', label: S.models.large },
+];
+
+// Stage keys drive both the visible stage label and the polite live region (Req 8.9).
+const STAGE_LABEL = {
+  'muat-turun-model': S.stages.downloading,
+  mentranskripsi: S.stages.transcribing,
+  selesai: S.stages.transcribed,
+  ralat: S.stages.transcribeFailed,
+  mengekstrak: S.stages.extracting,
+  'ekstrak-selesai': S.stages.extracted,
+  'ekstrak-ralat': S.stages.extractFailed,
+};
+
+// Dropzone colours: drag state changes border/background colour only, no scale (Req 2.6).
+const DROPZONE_BASE = 'flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-8 text-center transition-colors duration-150 ease-standard';
+const DROPZONE_IDLE = 'border-neutral-500 bg-neutral-50 hover:border-primary hover:bg-primary-subtle cursor-pointer';
+const DROPZONE_ACTIVE = 'border-primary bg-primary-subtle cursor-copy';
+const DROPZONE_BUSY = 'border-neutral-300 bg-neutral-100 cursor-not-allowed';
+
+const PREVIEW_ROW_CLASS = {
+  title: 'font-semibold text-primary tracking-wide',
+  heading: 'font-semibold text-neutral-900 mt-0.5',
+  meta: 'text-neutral-700',
+  item: 'pl-4 text-neutral-600',
 };
 
 // ─── Standard skeleton renderer ───────────────────────────────────────────────
 function StandardPreview({ rows }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-4 font-mono text-[11px] leading-6 text-gray-600 select-none overflow-hidden">
-      {rows.map((row, i) => {
-        if (row.level === 'divider')
-          return <div key={i} className="my-1.5 border-t border-dashed border-gray-300" />;
-        if (row.level === 'title')
-          return <p key={i} className="font-black text-[#1b3a5b] tracking-wide">{row.text}</p>;
-        if (row.level === 'heading')
-          return <p key={i} className="font-bold text-gray-700 mt-0.5">{row.text}</p>;
-        if (row.level === 'meta')
-          return <p key={i} className="text-gray-500">{row.text}</p>;
-        return <p key={i} className="pl-4 text-gray-400">{row.text}</p>;
-      })}
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50 px-5 py-4 font-mono text-xs leading-relaxed select-none">
+      {rows.map((row, i) =>
+        row.level === 'divider' ? (
+          <div key={i} className="my-1.5 border-t border-dashed border-neutral-300" />
+        ) : (
+          <p key={i} className={PREVIEW_ROW_CLASS[row.level] ?? PREVIEW_ROW_CLASS.item}>{row.text}</p>
+        ),
+      )}
     </div>
   );
 }
@@ -61,63 +101,68 @@ function StandardPreview({ rows }) {
 // customTemplateText: string | null  — the loaded custom template content
 // onUploadCustom: () => void          — triggers the file-input click
 function TemplatePreview({ template, customTemplateText, onUploadCustom }) {
-  // Standard template — always show the skeleton
   if (template.id !== 'custom') {
     return <StandardPreview rows={template.preview} />;
   }
 
-  // Custom template with content loaded — show it as plain preformatted text
   if (customTemplateText) {
     return (
-      <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 px-5 py-4 font-mono text-[11px] leading-6 text-gray-700 overflow-auto max-h-64 select-none whitespace-pre-wrap">
+      <div className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-neutral-200 bg-neutral-50 px-5 py-4 font-mono text-xs leading-relaxed text-neutral-900">
         {customTemplateText}
       </div>
     );
   }
 
-  // Custom template, nothing uploaded yet — empty state with inline upload CTA
   return (
-    <div className="rounded-lg border-2 border-dashed border-indigo-200 bg-indigo-50/30 px-6 py-8 text-center space-y-3">
-      <p className="text-sm font-bold text-indigo-400 tracking-widest uppercase">
-        [Tiada Templat Khusus Disimpan]
-      </p>
-      <p className="text-xs text-gray-500 max-w-sm mx-auto">
-        Sila muat naik fail templat{' '}
-        <span className="font-semibold text-gray-600">(.docx / .txt / .md)</span>{' '}
-        organisasi anda atau pilih Templat Biasa di atas.
-      </p>
-      <button
-        type="button"
-        onClick={onUploadCustom}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12" />
-        </svg>
-        + Muat Naik Templat
-      </button>
+    <div className="space-y-3 rounded-lg border-2 border-dashed border-neutral-300 bg-neutral-50 px-6 py-8 text-center">
+      <p className="text-sm font-semibold text-neutral-700">{S.templateEmptyTitle}</p>
+      <p className="mx-auto max-w-sm text-xs text-neutral-600">{S.templateEmptyDescription}</p>
+      <Button size="sm" icon={Upload} onClick={onUploadCustom}>
+        {S.templateUpload}
+      </Button>
     </div>
   );
 }
 
-export default function IngestView({ onExtracted, onBack }) {
+// `onBack` is still passed by App.jsx; this view does not render a back control.
+export default function IngestView({ onExtracted }) {
+  const toast = useToast();
+
   const [transcript, setTranscript] = useState('');
+  const [transcriptError, setTranscriptError] = useState('');
   const [fileStatus, setFileStatus] = useState('');
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Progress is stored as raw numbers; formatting happens at render (Req 8.2, 8.3).
   const [progressPct, setProgressPct] = useState(0);
-  const [timeInfo, setTimeInfo] = useState('');
+  const [currentTime, setCurrentTime] = useState(null);
+  const [totalTime, setTotalTime] = useState(null);
   const [selectedModel, setSelectedModel] = useState('base');
   const [isDownloadingModel, setIsDownloadingModel] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
   // Custom template text loaded by the user (null = nothing uploaded yet)
   const [customTemplateText, setCustomTemplateText] = useState(null);
+  // Current stage key + polite announcement text (changes only on stage transitions).
+  const [stage, setStage] = useState(null);
+  const [announcement, setAnnouncement] = useState('');
 
-  const fileInputRef         = useRef(null);
-  const customTemplateRef    = useRef(null);   // hidden input for template upload
+  const stageRef          = useRef(null);
+  const fileInputRef      = useRef(null);
+  const customTemplateRef = useRef(null);   // hidden input for template upload
+
+  const dropHintId = 'ingest-dropzone-formats';
+  const templatePanelId = 'ingest-template-structure';
+
+  // Update stage and live-region text only when the stage actually changes,
+  // so percentage updates never trigger an announcement (Req 8.9).
+  const enterStage = useCallback((next) => {
+    if (stageRef.current === next) return;
+    stageRef.current = next;
+    setStage(next);
+    setAnnouncement(STAGE_LABEL[next] ?? '');
+  }, []);
 
   // ── Restore transcript from sessionStorage on mount ─────────────────────
   useEffect(() => {
@@ -131,7 +176,7 @@ export default function IngestView({ onExtracted, onBack }) {
       .then((data) => {
         if (data?.transcript) {
           setTranscript(data.transcript);
-          setFileStatus('Transkrip dipulihkan daripada sesi sebelumnya.');
+          setFileStatus(S.restored);
         }
       })
       .catch(() => sessionStorage.removeItem(SESSION_KEY));
@@ -143,8 +188,8 @@ export default function IngestView({ onExtracted, onBack }) {
     try {
       const text = await file.text();
       setCustomTemplateText(text);
-    } catch {
-      alert('Gagal membaca fail templat.');
+    } catch (err) {
+      toast.error(buildErrorMessage(T.ops.templateRead, err?.message));
     }
   };
 
@@ -153,23 +198,28 @@ export default function IngestView({ onExtracted, onBack }) {
     if (!file) return;
 
     if (file.name.endsWith('.txt')) {
-      setFileStatus(`Membaca fail teks: ${file.name}...`);
+      setFileStatus(S.readingText(file.name));
       try {
         const text = await file.text();
         setTranscript(text);
-        setFileStatus(`Fail teks dimuatkan: ${file.name}`);
+        setTranscriptError('');
+        setFileStatus(S.textLoaded(file.name));
+        toast.success(T.success.loadFile(file.name));
       } catch (err) {
-        alert('Gagal membaca fail teks: ' + err.message);
-        setFileStatus('Ralat membaca fail.');
+        toast.error(buildErrorMessage(T.ops.loadFile, err?.message));
+        setFileStatus(S.readFailed);
       }
       return;
     }
 
-    setFileStatus(`Memproses audio dengan Whisper (${selectedModel}): ${file.name}`);
+    setFileStatus(S.processingAudio(selectedModel, file.name));
     setIsTranscribing(true);
     setProgressPct(0);
-    setTimeInfo('');
+    setCurrentTime(null);
+    setTotalTime(null);
     setTranscript('');
+    setTranscriptError('');
+    enterStage('mentranskripsi');
 
     const formData = new FormData();
     formData.append('file', file);
@@ -177,7 +227,7 @@ export default function IngestView({ onExtracted, onBack }) {
 
     try {
       const response = await fetch('/api/transcribe', { method: 'POST', body: formData });
-      if (!response.ok) throw new Error('Ralat memulakan penstriman audio.');
+      if (!response.ok) throw new Error(S.streamStartFailed);
 
       const reader  = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
@@ -197,20 +247,24 @@ export default function IngestView({ onExtracted, onBack }) {
 
           if (data.type === 'status' && data.stage === 'downloading') {
             setIsDownloadingModel(true);
-            setFileStatus(data.message);
+            if (data.message) setFileStatus(data.message);
+            enterStage('muat-turun-model');
           } else if (data.type === 'progress') {
             setIsDownloadingModel(false);
-            if (data.progress !== undefined) setProgressPct(data.progress);
-            if (data.currentTime !== undefined)
-              setTimeInfo(data.totalTime ? `${data.currentTime}s / ${data.totalTime}s` : `${data.currentTime}s`);
+            enterStage('mentranskripsi');
+            if (data.progress !== undefined) setProgressPct(Number(data.progress));
+            if (data.currentTime !== undefined) setCurrentTime(Number(data.currentTime));
+            if (data.totalTime !== undefined) setTotalTime(data.totalTime ? Number(data.totalTime) : null);
             const chunkText = (data.text || data.segment || '').trim();
             if (chunkText) setTranscript((prev) => prev ? `${prev}\n${chunkText}` : chunkText);
           } else if (data.type === 'complete') {
             setIsDownloadingModel(false);
             setProgressPct(100);
             setTranscript(data.transcript || data.full_transcript || '');
-            setFileStatus(`Transkripsi siap sepenuhnya untuk: ${file.name}`);
+            setFileStatus(S.transcribeDone(file.name));
             if (data.transcript_id) sessionStorage.setItem(SESSION_KEY, data.transcript_id);
+            enterStage('selesai');
+            toast.success(T.success.transcribe);
           } else if (data.type === 'error') {
             setIsDownloadingModel(false);
             throw new Error(data.message);
@@ -218,21 +272,47 @@ export default function IngestView({ onExtracted, onBack }) {
         }
       }
     } catch (err) {
-      alert('Ralat transkripsi: ' + err.message);
-      setFileStatus('Ralat pemprosesan audio.');
+      setIsDownloadingModel(false);
+      enterStage('ralat');
+      toast.error(buildErrorMessage(T.ops.transcribe, err?.message));
+      setFileStatus(S.transcribeFailedStatus);
     } finally {
       setIsTranscribing(false);
     }
   };
 
+  const openFilePicker = () => {
+    if (isTranscribing) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!isTranscribing) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (isTranscribing) return;
+    if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]);
+  };
+
   // ── AI Extraction ────────────────────────────────────────────────────────
   const handleTriggerExtract = async () => {
     if (!transcript || !transcript.trim()) {
-      alert('Sila pastikan teks transkrip sah dan tidak kosong.');
+      setTranscriptError(S.transcriptRequired);
       return;
     }
 
+    setTranscriptError('');
     setIsExtracting(true);
+    enterStage('mengekstrak');
     try {
       // Build the extract payload — include custom template text when available
       const extractPayload = { transcript, template_type: selectedTemplate };
@@ -240,13 +320,17 @@ export default function IngestView({ onExtracted, onBack }) {
         extractPayload.template_text = customTemplateText;
       }
 
-      const res    = await fetch('/api/extract', {
+      const res = await fetch('/api/extract', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(extractPayload),
       });
-      const result = await res.json();
-      if (!res.ok || !result.data) throw new Error(result.detail || 'Gagal mengekstrak minit mesyuarat.');
+      let result = null;
+      try { result = await res.json(); } catch { result = null; }
+      if (!res.ok || !result?.data) {
+        // Carry the backend `detail` (may be absent or non-string) to the error toast.
+        throw Object.assign(new Error(), { backendFailure: true, detail: result?.detail });
+      }
 
       const data = result.data;
       const decisionsByAgenda = {};
@@ -264,7 +348,7 @@ export default function IngestView({ onExtracted, onBack }) {
         id: stableId,
         meeting_title: data.title
           || data.meeting_title
-          || (data.agenda_items?.[0]?.title ? `Perbincangan: ${data.agenda_items[0].title}` : 'Mesyuarat Tanpa Tajuk'),
+          || (data.agenda_items?.[0]?.title ? S.discussionPrefix(data.agenda_items[0].title) : S.untitledMeeting),
         meeting_number:   data.meeting_number || '',
         location:         data.venue          || data.location    || '',
         date:             data.date           || data.meeting_date || '',
@@ -294,9 +378,10 @@ export default function IngestView({ onExtracted, onBack }) {
         raw_transcript: transcript,
       };
 
-      // Immediately persist as Draf so navigating away never loses the record
+      // Immediately persist as Draf so navigating away never loses the record.
+      // Non-blocking: on failure the user still proceeds; editor auto-save retries.
       try {
-        await fetch('/api/meetings/save', {
+        const saveRes = await fetch('/api/meetings/save', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
@@ -312,14 +397,29 @@ export default function IngestView({ onExtracted, onBack }) {
             })),
           }),
         });
-      } catch (_) { /* non-blocking */ }
+        if (!saveRes.ok) {
+          let detail;
+          try { detail = (await saveRes.json())?.detail; } catch { detail = undefined; }
+          toast.error(buildErrorMessage(T.ops.save, detail));
+        }
+      } catch (saveErr) {
+        toast.error(buildErrorMessage(T.ops.save, saveErr?.message));
+      }
 
+      enterStage('ekstrak-selesai');
       onExtracted(formattedMeeting);
     } catch (err) {
-      alert('Ralat pengekstrakan: ' + err.message);
+      enterStage('ekstrak-ralat');
+      toast.error(buildErrorMessage(T.ops.extract, err?.backendFailure ? err.detail : err?.message));
     } finally {
       setIsExtracting(false);
     }
+  };
+
+  const handleClear = () => {
+    setTranscript('');
+    setTranscriptError('');
+    sessionStorage.removeItem(SESSION_KEY);
   };
 
   // ── Download transcript ──────────────────────────────────────────────────
@@ -377,100 +477,97 @@ export default function IngestView({ onExtracted, onBack }) {
     URL.revokeObjectURL(url);
   };
 
+  const template = TEMPLATES[selectedTemplate];
+  const pct = clampPercent(progressPct);
+  const hasTranscript = Boolean(transcript?.trim());
+  const dropzoneLabel = isTranscribing ? S.dropBusy : isDragging ? S.dropActive : S.dropIdle;
+  const dropzoneClass = cx(
+    DROPZONE_BASE,
+    isTranscribing ? DROPZONE_BUSY : isDragging ? DROPZONE_ACTIVE : DROPZONE_IDLE,
+  );
+
   // ════════════════════════════════════════════════════════════════════════════
   // RENDER
   // ════════════════════════════════════════════════════════════════════════════
   return (
-    <section className="space-y-6">
+    <div className="space-y-6">
+      {/* Polite live region: text changes only on stage transitions (Req 8.9). */}
+      <div aria-live="polite" className="sr-only">{announcement}</div>
 
       {/* ── Card: Templat Format Minit ────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-7">
-        {/* Header */}
-        <div className="mb-1">
-          <h3 className="text-[11px] font-black uppercase tracking-widest text-[#1b3a5b]">
-            Templat Format Minit
-          </h3>
-          <div className="mt-1.5 h-0.5 bg-[#1b3a5b] rounded-full mb-5" />
-        </div>
+      <Card as="section" padding="lg" aria-labelledby="ingest-template-title">
+        <SectionHeader id="ingest-template-title" title={S.templateTitle} description={S.templateDescription} />
 
-        {/* Controls row: dropdown + badge + toggle */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <select
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <FormField
+            as="select"
+            label={S.templateLabel}
+            className="flex-1"
             value={selectedTemplate}
             onChange={(e) => setSelectedTemplate(e.target.value)}
-            className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1b3a5b]/30 focus:border-[#1b3a5b] transition-colors"
           >
             {Object.values(TEMPLATES).map((t) => (
               <option key={t.id} value={t.id}>{t.label}</option>
             ))}
-          </select>
+          </FormField>
 
-          {/* Status badge */}
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold whitespace-nowrap ${TEMPLATES[selectedTemplate].badgeColor}`}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {TEMPLATES[selectedTemplate].badge}
-            {/* Show filename when a custom template is loaded */}
-            {selectedTemplate === 'custom' && customTemplateText && (
-              <span className="ml-1 text-indigo-400 font-normal">(dimuat)</span>
+          <span
+            className={cx(
+              'inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-xs font-medium',
+              template.tagClass,
             )}
+          >
+            <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+            {template.tag}
+            {selectedTemplate === 'custom' && customTemplateText ? (
+              <span className="font-normal">{S.templateLoadedSuffix}</span>
+            ) : null}
           </span>
 
-          {/* Accordion toggle */}
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={showTemplatePreview}
+            aria-controls={templatePanelId}
             onClick={() => setShowTemplatePreview((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 text-xs font-semibold text-gray-600 transition-colors whitespace-nowrap"
+            className="whitespace-nowrap"
           >
-            Struktur Templat
-            <svg
-              className={`w-3.5 h-3.5 transition-transform duration-300 ${showTemplatePreview ? 'rotate-180' : ''}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+            {S.templateStructure}
+            <ChevronDown
+              className={cx(
+                'size-4 shrink-0 transition-transform duration-150 ease-standard',
+                showTemplatePreview && 'rotate-180',
+              )}
+              aria-hidden="true"
+            />
+          </Button>
         </div>
 
-        {/* Smooth accordion */}
-        <div
-          className={`grid transition-all duration-300 ease-in-out overflow-hidden ${
-            showTemplatePreview
-              ? 'grid-rows-[1fr] opacity-100 mt-4'
-              : 'grid-rows-[0fr] opacity-0 mt-0 pointer-events-none'
-          }`}
-        >
-          <div className="min-h-0 space-y-3">
+        {showTemplatePreview ? (
+          <div id={templatePanelId} className="mt-4 space-y-3">
             <TemplatePreview
-              template={TEMPLATES[selectedTemplate]}
+              template={template}
               customTemplateText={customTemplateText}
               onUploadCustom={() => customTemplateRef.current?.click()}
             />
 
-            {/* Footnote + replace button — only when custom is selected */}
             {selectedTemplate === 'custom' && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-                <p className="flex-1 text-[11px] text-gray-400">
-                  {customTemplateText
-                    ? 'Templat khusus berjaya dimuatkan. Klik "Ganti" untuk menukar.'
-                    : 'Tiada templat khusus disimpan. Anda boleh menambah templat khusus di bahagian \'Muat Turun Templat\' pada dashboard.'}
+              <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
+                <p className="flex-1 text-xs text-neutral-600">
+                  {customTemplateText ? S.templateLoadedNote : S.templateMissingNote}
                 </p>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Upload}
                   onClick={() => customTemplateRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors whitespace-nowrap"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  {customTemplateText ? 'Ganti Templat' : '+ Muat Naik Templat'}
-                </button>
+                  {customTemplateText ? S.templateReplace : S.templateUpload}
+                </Button>
               </div>
             )}
           </div>
-        </div>
+        ) : null}
 
         {/* Hidden file input for custom template */}
         <input
@@ -478,185 +575,144 @@ export default function IngestView({ onExtracted, onBack }) {
           ref={customTemplateRef}
           className="hidden"
           accept=".txt,.md,.docx"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={(e) => {
             if (e.target.files?.[0]) handleCustomTemplateUpload(e.target.files[0]);
             e.target.value = '';   // allow re-uploading the same file
           }}
         />
-      </div>
+      </Card>
 
-      {/* ── Audio Dropzone & Configuration ──────────────────────────────── */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="text-xs font-bold uppercase text-gray-700 mb-1">Muat Naik Dokumen / Audio Mesyuarat</h3>
-            <p className="text-xs text-gray-500">
-              Seret fail audio (MP3, WAV, M4A) atau teks. Enjin Whisper akan mentranskripsikannya secara tempatan.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-[11px] font-bold uppercase text-gray-600">Model Whisper:</label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={isTranscribing}
-              className="text-xs border border-gray-300 rounded px-2.5 py-1.5 bg-gray-50 text-gray-700 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="tiny">Tiny (~75MB - Sangat Pantas)</option>
-              <option value="base">Base (~145MB - Pantas & Seimbang)</option>
-              <option value="small">Small (~480MB - Standard)</option>
-              <option value="large-v3-turbo">Large-v3-turbo (~1.6GB - Sangat Tepat)</option>
-            </select>
-          </div>
-        </div>
+      {/* ── Card: Muat Naik Dokumen / Audio Mesyuarat ─────────────────────── */}
+      <Card as="section" padding="lg" aria-labelledby="ingest-upload-title">
+        <SectionHeader id="ingest-upload-title" title={S.uploadTitle} description={S.uploadDescription} />
 
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e)  => { e.preventDefault(); setIsDragging(true);  }}
-          onDragEnter={(e) => { e.preventDefault(); setIsDragging(true);  }}
-          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files[0]) handleFileUpload(e.dataTransfer.files[0]);
-          }}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition duration-150 ${
-            isDragging ? 'border-blue-500 bg-blue-50/80 scale-[1.01]' : 'border-gray-300 hover:border-blue-400 bg-gray-50'
-          }`}
-        >
-          <svg
-            className={`mx-auto h-10 w-10 mb-2 transition-transform duration-150 ${isDragging ? 'text-blue-600 scale-110' : 'text-gray-400'}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        <div className="space-y-4">
+          <FormField
+            as="select"
+            label={S.modelLabel}
+            helper={S.modelHelper}
+            className="max-w-sm"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={isTranscribing}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          <span className={`text-xs font-semibold ${isDragging ? 'text-blue-700' : 'text-gray-700'}`}>
-            {isDragging ? 'Lepaskan fail di sini...' : isTranscribing ? 'Mentranskripsi fail audio...' : 'Klik atau seret fail ke sini'}
-          </span>
-          <p className="text-[10px] text-gray-400 mt-1">MP3, WAV, M4A, TXT</p>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".mp3,.wav,.m4a,.txt"
-            onChange={(e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); }} />
-        </div>
-
-        {isDownloadingModel && (
-          <div className="mt-3 bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-lg flex items-center gap-3 text-xs animate-pulse">
-            <svg className="animate-spin h-4 w-4 text-amber-700 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            <div>
-              <span className="font-bold">Memuat Turun Model Whisper:</span> Fail model Whisper ({selectedModel}) sedang dimuat turun ke komputer buat kali pertama. Sila tunggu sebentar (proses ini hanya berlaku sekali).
-            </div>
-          </div>
-        )}
-
-        {fileStatus && (
-          <div className="mt-3 space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-blue-700">{fileStatus}</span>
-              {isTranscribing && (
-                <span className="font-bold text-blue-900 bg-blue-100 px-2.5 py-0.5 rounded text-[11px]">
-                  {progressPct}% {timeInfo && `(${timeInfo})`}
-                </span>
-              )}
-            </div>
-            {isTranscribing && (
-              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
-                <div className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out" style={{ width: `${progressPct}%` }} />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Transcript + Extract ─────────────────────────────────────────── */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-        <h3 className="text-xs font-bold uppercase text-gray-700 mb-1">Pengekstrak AI — Transkrip ke Minit</h3>
-        <p className="text-xs text-gray-500 mb-3">Teks transkripsi langsung dipaparkan di sini atau tampal teks perbincangan.</p>
-
-        <textarea
-          rows={9}
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded text-xs font-mono whitespace-pre-wrap focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          placeholder="Transkrip teks perbincangan mesyuarat akan muncul di sini..."
-        />
-
-        <div className="flex justify-between items-center mt-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setTranscript(''); sessionStorage.removeItem(SESSION_KEY); }}
-              className="text-xs text-gray-500 hover:underline"
-            >
-              Kosongkan
-            </button>
-
-            {/* Download buttons — only shown when there is transcript text */}
-            {transcript?.trim() && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase text-gray-400 tracking-widest mr-0.5">Muat turun:</span>
-
-                {/* TXT */}
-                <button
-                  type="button"
-                  onClick={() => downloadTranscript('txt')}
-                  title="Muat turun sebagai teks biasa (.txt)"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 text-[11px] font-semibold text-gray-600 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  TXT
-                </button>
-
-                {/* JSON */}
-                <button
-                  type="button"
-                  onClick={() => downloadTranscript('json')}
-                  title="Muat turun sebagai JSON (.json)"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 text-[11px] font-semibold text-gray-600 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  JSON
-                </button>
-
-                {/* SRT */}
-                <button
-                  type="button"
-                  onClick={() => downloadTranscript('srt')}
-                  title="Muat turun sebagai subtitle (.srt)"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 text-[11px] font-semibold text-gray-600 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                  SRT
-                </button>
-              </div>
-            )}
-          </div>
+            {WHISPER_MODELS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </FormField>
 
           <button
-            onClick={handleTriggerExtract}
-            disabled={isExtracting || isTranscribing || !transcript?.trim()}
-            className="bg-[#1b3a5b] hover:bg-blue-900 disabled:opacity-50 text-white text-xs font-semibold px-6 py-2.5 rounded shadow transition flex items-center gap-2"
+            type="button"
+            onClick={openFilePicker}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            aria-describedby={dropHintId}
+            aria-disabled={isTranscribing ? 'true' : undefined}
+            className={dropzoneClass}
           >
-            {isExtracting && (
-              <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            )}
-            {isExtracting ? 'Mengekstrak via Claude...' : 'Ekstrak dengan AI'}
+            <Upload
+              className={cx('size-10', isDragging ? 'text-primary' : 'text-neutral-600')}
+              aria-hidden="true"
+            />
+            <span className="text-sm font-medium text-neutral-900">{dropzoneLabel}</span>
+            <span id={dropHintId} className="text-xs text-neutral-600">{S.acceptedFormats}</span>
           </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".mp3,.wav,.m4a,.txt"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(e) => {
+              if (e.target.files?.[0]) handleFileUpload(e.target.files[0]);
+              e.target.value = '';   // allow re-uploading the same file
+            }}
+          />
+
+          {isDownloadingModel && (
+            <div className="flex items-start gap-3 rounded-lg border border-info-border bg-info-bg px-4 py-3 text-sm text-info-fg">
+              <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">{S.modelDownloadingTitle} ({selectedModel})</p>
+                <p>{T.messages.modelDownloading}</p>
+              </div>
+            </div>
+          )}
+
+          {isTranscribing && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="font-medium text-neutral-900">{STAGE_LABEL[stage] ?? S.stages.transcribing}</span>
+                <span className="font-mono text-xs text-neutral-700">
+                  {pct}% · {formatAudioProgress(currentTime ?? 0, totalTime)}
+                </span>
+              </div>
+              <ProgressBar value={pct} label={S.progressLabel} />
+            </div>
+          )}
+
+          {fileStatus && (
+            <p className="text-sm text-neutral-700">{fileStatus}</p>
+          )}
         </div>
-      </div>
-    </section>
+      </Card>
+
+      {/* ── Card: Pengekstrak AI ──────────────────────────────────────────── */}
+      <Card as="section" padding="lg" aria-labelledby="ingest-extract-title">
+        <SectionHeader id="ingest-extract-title" title={S.extractTitle} description={S.extractDescription} />
+
+        <FormField
+          as="textarea"
+          label={S.transcriptLabel}
+          rows={9}
+          value={transcript}
+          onChange={(e) => {
+            setTranscript(e.target.value);
+            if (transcriptError) setTranscriptError('');
+          }}
+          placeholder={S.transcriptPlaceholder}
+          error={transcriptError || undefined}
+          controlClassName="font-mono text-sm leading-relaxed whitespace-pre-wrap max-w-[80ch]"
+        />
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleClear}>
+              {T.actions.clear}
+            </Button>
+
+            {hasTranscript && (
+              <div role="group" aria-label={S.downloadGroup} className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-neutral-600" aria-hidden="true">{T.actions.download}:</span>
+                <Button variant="outline" size="sm" icon={Download} title={S.downloadTxt} onClick={() => downloadTranscript('txt')}>
+                  TXT
+                </Button>
+                <Button variant="outline" size="sm" icon={Download} title={S.downloadJson} onClick={() => downloadTranscript('json')}>
+                  JSON
+                </Button>
+                <Button variant="outline" size="sm" icon={Download} title={S.downloadSrt} onClick={() => downloadTranscript('srt')}>
+                  SRT
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <Button
+            variant="primary"
+            icon={Sparkles}
+            busy={isExtracting}
+            disabled={isTranscribing}
+            onClick={handleTriggerExtract}
+          >
+            {isExtracting ? T.messages.extracting : T.actions.extract}
+          </Button>
+        </div>
+      </Card>
+    </div>
   );
 }

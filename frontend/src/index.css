@@ -1,41 +1,139 @@
 @import "tailwindcss";
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+/*
+ * Design tokens. This is the only @theme block in the app.
+ * Default Tailwind namespaces are reset first so only these tokens exist.
+ */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+
+  /* Neutral (slate) */
+  --color-white: #ffffff;
+  --color-neutral-50: #f8fafc; /* page background */
+  --color-neutral-100: #f1f5f9; /* subtle fill, neutral badge bg */
+  --color-neutral-200: #e2e8f0; /* card / divider border (decorative) */
+  --color-neutral-300: #cbd5e1; /* skeleton fill */
+  --color-neutral-500: #64748b; /* input + badge borders (4.76:1 on white) */
+  --color-neutral-600: #475569; /* secondary text (7.58:1 on white) */
+  --color-neutral-700: #334155; /* strong secondary text, neutral badge fg */
+  --color-neutral-900: #0f172a; /* body text */
+
+  /* Primary navy */
+  --color-primary: #1b3a5b;
+  --color-primary-hover: #142c45;
+  --color-primary-active: #0e1f31;
+  --color-primary-subtle: #eef3f8; /* hover fill on light surfaces */
+  --color-on-primary: #ffffff;
+  --color-on-primary-muted: #d9e3ee; /* header subtitle on navy */
+
+  /* Gold accent: rules, borders, icons only */
+  --color-accent: #9a7b2f; /* on light surfaces (~4.0:1, icon/border use) */
+  --color-accent-light: #d4b45c; /* thin rule on navy (~5.8:1) */
+
+  /* Semantic: fg / bg / border triplets + solid */
+  --color-success-fg: #166534;
+  --color-success-bg: #dcfce7;
+  --color-success-border: #15803d;
+  --color-success: #15803d;
+
+  --color-warning-fg: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-warning-border: #b45309;
+  --color-warning: #b45309;
+
+  --color-danger-fg: #991b1b;
+  --color-danger-bg: #fee2e2;
+  --color-danger-border: #b91c1c;
+  --color-danger: #b91c1c;
+  --color-danger-hover: #991b1b;
+
+  --color-info-fg: #1e40af;
+  --color-info-bg: #dbeafe;
+  --color-info-border: #1d4ed8;
+  --color-info: #1d4ed8;
+
+  --color-neutral-fg: #334155;
+  --color-neutral-bg: #f1f5f9;
+  --color-neutral-border: #64748b;
+
+  /* Focus */
+  --color-focus: #1b3a5b;
+
+  /* Official document surface (preview only; not used by app chrome) */
+  --color-doc-paper: #ffffff;
+  --color-doc-ink: #000000;
+  --color-doc-muted: #404040;
+  --color-doc-rule: #000000;
+
+  /* Typography: system fonts only, no network requests */
+  --font-sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Type scale: 6 sizes, 12px..30px */
+  --text-xs: 0.75rem; /* 12px labels, helper, table headers */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem; /* 14px body */
+  --text-sm--line-height: 1.6;
+  --text-base: 1rem; /* 16px h3 */
+  --text-base--line-height: 1.5;
+  --text-lg: 1.25rem; /* 20px h2 */
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.5rem; /* 24px h1 */
+  --text-xl--line-height: 1.3;
+  --text-2xl: 1.875rem; /* 30px statistic numbers */
+  --text-2xl--line-height: 1.2;
+
+  /* Radius: max 8px (full: badges/progress only) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.12); /* toast, dialog, overflow menu */
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 150ms;
+
+  /* Layout */
+  --container-content: 80rem; /* 1280px main content max width */
+  --aspect-a4: 1 / 1.414;
+}
+
+@layer base {
+  html {
+    background: var(--color-neutral-50);
+    color: var(--color-neutral-900);
+    /* Matches the sticky editor action bar so focused fields are never hidden under it */
+    scroll-padding-top: 5rem;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+  }
+
+  /* Single focus indicator for every interactive element */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
-}
-
-/* Force scrollbar to always show to prevent layout shift */
-html {
-  overflow-y: scroll;
-  scroll-behavior: smooth;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }

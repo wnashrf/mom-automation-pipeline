@@ -18,4 +18,12 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Tests run in Vitest (jsdom) and static-scan tests read source via fs/path.
+    // Vitest APIs are imported explicitly (no `globals: true`), so only Node globals are added.
+    files: ['src/**/*.test.{js,jsx}', 'src/test/**'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
 ])
