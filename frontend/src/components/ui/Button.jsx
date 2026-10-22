@@ -8,7 +8,7 @@ const VARIANT = {
   secondary: 'bg-neutral-100 text-neutral-900 border border-neutral-200 hover:bg-neutral-200 active:bg-neutral-300',
   outline:   'bg-white text-primary border border-primary hover:bg-primary-subtle active:bg-neutral-200',
   ghost:     'bg-white text-primary border border-white hover:bg-primary-subtle active:bg-neutral-200',
-  danger:    'bg-danger text-white border border-danger hover:bg-danger-hover active:bg-danger-fg',
+  danger:    'bg-danger text-on-primary border border-danger hover:bg-danger-hover active:bg-danger-fg',
 };
 
 const DISABLED = 'disabled:bg-neutral-100 disabled:text-neutral-600 disabled:border-neutral-200 disabled:cursor-not-allowed';

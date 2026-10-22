@@ -135,7 +135,7 @@ export default function ConfirmDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-doc-ink/50 p-4"
       onMouseDown={handleBackdropMouseDown}
     >
       <div

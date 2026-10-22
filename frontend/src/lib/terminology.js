@@ -3,7 +3,7 @@
  * Views import from here; they never inline recurring terms (Req 5.1–5.3, 5.6, 5.7).
  */
 export const T = Object.freeze({
-  app: { name: 'Penjana Minit Mesyuarat', subtitle: 'Sektor Awam Malaysia', tabTitle: 'Penjana Minit Mesyuarat' },
+  app: { name: 'Penjana Minit Mesyuarat', subtitle: 'Sektor Awam Malaysia', tabTitle: 'Penjana Minit Mesyuarat', darkMode: 'Mod malam', lightMode: 'Mod siang' },
   nav: { history: 'Sejarah', tracker: 'Penjejak', ingest: 'Ekstrak AI', newMeeting: 'Minit Baharu', label: 'Navigasi utama' },
   actions: {
     view: 'Lihat', edit: 'Sunting', delete: 'Padam', download: 'Muat Turun', preview: 'Pratonton',

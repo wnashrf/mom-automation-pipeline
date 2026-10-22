@@ -110,6 +110,9 @@
   html {
     background: var(--color-neutral-50);
     color: var(--color-neutral-900);
+    color-scheme: light;
+    /* Always reserve the right-hand scrollbar so short and long pages share the same width */
+    overflow-y: scroll;
     /* Matches the sticky editor action bar so focused fields are never hidden under it */
     scroll-padding-top: 5rem;
   }
@@ -118,6 +121,52 @@
     font-family: var(--font-sans);
     font-size: var(--text-sm);
     line-height: 1.6;
+  }
+
+  /* Night mode: same token names, dark values. Document paper (--color-doc-*) stays white. */
+  html.dark {
+    color-scheme: dark;
+    --color-white: #1e293b;
+    --color-neutral-50: #0f172a;
+    --color-neutral-100: #273449;
+    --color-neutral-200: #334155;
+    --color-neutral-300: #475569;
+    --color-neutral-500: #94a3b8;
+    --color-neutral-600: #cbd5e1;
+    --color-neutral-700: #e2e8f0;
+    --color-neutral-900: #f1f5f9;
+
+    --color-primary: #93b4dc;
+    --color-primary-hover: #b0c9e6;
+    --color-primary-active: #c8daee;
+    --color-primary-subtle: #1f3550;
+    --color-on-primary: #0f172a;
+    --color-on-primary-muted: #1e3a5f;
+    --color-accent: #d4b45c;
+    --color-accent-light: #7a5f1f;
+
+    --color-success-fg: #86efac;
+    --color-success-bg: #14532d;
+    --color-success-border: #22c55e;
+    --color-success: #22c55e;
+    --color-warning-fg: #fcd34d;
+    --color-warning-bg: #78350f;
+    --color-warning-border: #f59e0b;
+    --color-warning: #f59e0b;
+    --color-danger-fg: #fca5a5;
+    --color-danger-bg: #7f1d1d;
+    --color-danger-border: #f87171;
+    --color-danger: #f87171;
+    --color-danger-hover: #fca5a5;
+    --color-info-fg: #93c5fd;
+    --color-info-bg: #1e3a8a;
+    --color-info-border: #60a5fa;
+    --color-info: #60a5fa;
+    --color-neutral-fg: #e2e8f0;
+    --color-neutral-bg: #273449;
+    --color-neutral-border: #94a3b8;
+
+    --color-focus: #93b4dc;
   }
 
   /* Single focus indicator for every interactive element */
