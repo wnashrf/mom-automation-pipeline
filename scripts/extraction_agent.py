@@ -232,13 +232,34 @@ PERKARA-PERKARA BERBANGKIT → TINDAKAN SUSULAN) but apply flexible numbering
 that best reflects the actual flow of the meeting as captured in the transcript.
 """
 
+TEMPLATE_USER_GUIDANCE = """
+DOCUMENT STRUCTURE — USER-SUPPLIED CUSTOM TEMPLATE (AUTHORITATIVE):
+The user supplied their own minutes template under MEETING_FORMAT_TEMPLATE in the
+user message. Read it BEFORE the transcript.
+This template OVERRIDES every section-ordering, heading, numbering and language rule
+elsewhere in this prompt, including the PKPA standard order in RULES.
+- Use the template's section headings (verbatim wording, numbering style and order)
+  as the agenda_items titles. Do NOT fall back to PERUTUSAN PENGERUSI /
+  PENGESAHAN MINIT / PERKARA-PERKARA BERBANGKIT unless the template contains them.
+- Put each piece of transcript content under the matching template section;
+  omit a section only when the transcript has nothing for it.
+- Write headings and summaries in the template's language and style.
+- Template fields for date, time, venue, chairperson, attendance, etc. map to the
+  corresponding top-level JSON fields, not agenda_items.
+- The JSON schema still applies; only its content and structure follow the template.
+"""
+
 TEMPLATE_GUIDANCE_MAP = {
     "standard": TEMPLATE_STANDARD_GUIDANCE,
     "custom": TEMPLATE_CUSTOM_GUIDANCE,
 }
 
 
-def run_extraction(transcript_input: str | Path, template_type: str = "standard") -> dict:
+def run_extraction(
+    transcript_input: str | Path,
+    template_type: str = "standard",
+    template_text: str | None = None,
+) -> dict:
     """
     Main entry point for extraction.
     Accepts either an on-disk file path or raw transcript text directly.
@@ -246,6 +267,7 @@ def run_extraction(transcript_input: str | Path, template_type: str = "standard"
     Args:
         transcript_input: Path to a transcript file or raw transcript string.
         template_type: "standard" (default, PKPA Bil. 2/1991) or "custom".
+        template_text: User-uploaded template content; used when template_type is "custom".
     """
     is_file_on_disk = False
     try:
@@ -294,7 +316,11 @@ def run_extraction(transcript_input: str | Path, template_type: str = "standard"
             }
         }
 
-    template_guidance = TEMPLATE_GUIDANCE_MAP.get(template_type, TEMPLATE_STANDARD_GUIDANCE)
+    custom_template = (template_text or "").strip() if template_type == "custom" else ""
+    if custom_template:
+        template_guidance = TEMPLATE_USER_GUIDANCE
+    else:
+        template_guidance = TEMPLATE_GUIDANCE_MAP.get(template_type, TEMPLATE_STANDARD_GUIDANCE)
 
     system_prompt = f"""You are a professional meeting minutes extraction engine specialised in multilingual Malaysian workplace communication (Bahasa Melayu, English, Manglish code-switching).
 Extract structured meeting data conforming strictly to MoM_Schema.
@@ -458,12 +484,19 @@ ACTION ITEM DUPLICATE SUPPRESSION:
 - Use "id" (NOT "agenda_id" or "action_id") across all items.
 - Format all ids with lowercase prefixes: "agenda-001", "decision-001", "action-001".
 
-{template_guidance}
 RULES:
 {rules.get('raw_content', '')}
+
+{template_guidance}
 """
 
-    user_prompt = f"""TRANSCRIPT_SEGMENT:
+    # Template goes before the transcript so the model reads the target format first.
+    template_block = (
+        f"MEETING_FORMAT_TEMPLATE (read first — structure the output to follow it):\n"
+        f"{custom_template}\n\n"
+        if custom_template else ""
+    )
+    user_prompt = template_block + f"""TRANSCRIPT_SEGMENT:
 {transcript_text}
 
 MEETING_DATE_HINT: {meeting_date if meeting_date else "null"}

@@ -64,6 +64,7 @@ def is_model_cached(model_size: str) -> bool:
 class ExtractPayload(BaseModel):
     transcript: str
     template_type: str = "standard"   # "standard" | "custom"
+    template_text: str | None = None  # user-uploaded template content (custom only)
 
 @router.get("/transcript/{transcript_id}")
 async def get_cached_transcript(transcript_id: str):
@@ -158,7 +159,11 @@ async def extract_meeting_minutes(payload: ExtractPayload):
         raise HTTPException(status_code=400, detail="Transkrip kosong.")
 
     try:
-        extracted = run_extraction(payload.transcript, template_type=payload.template_type)
+        extracted = run_extraction(
+            payload.transcript,
+            template_type=payload.template_type,
+            template_text=payload.template_text,
+        )
         return {"status": "success", "data": extracted}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ralat pengekstrakan: {str(e)}")

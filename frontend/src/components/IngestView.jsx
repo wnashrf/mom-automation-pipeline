@@ -251,6 +251,8 @@ export default function IngestView({ onExtracted }) {
             enterStage('muat-turun-model');
           } else if (data.type === 'progress') {
             setIsDownloadingModel(false);
+            // Replace the "downloading model" status once transcription actually starts.
+            if (stageRef.current === 'muat-turun-model') setFileStatus(S.processingAudio(selectedModel, file.name));
             enterStage('mentranskripsi');
             if (data.progress !== undefined) setProgressPct(Number(data.progress));
             if (data.currentTime !== undefined) setCurrentTime(Number(data.currentTime));
@@ -677,7 +679,7 @@ export default function IngestView({ onExtracted }) {
           }}
           placeholder={S.transcriptPlaceholder}
           error={transcriptError || undefined}
-          controlClassName="font-mono text-sm leading-relaxed whitespace-pre-wrap max-w-[80ch]"
+          controlClassName="font-mono text-sm leading-relaxed whitespace-pre-wrap w-full"
         />
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
